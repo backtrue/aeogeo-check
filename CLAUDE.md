@@ -18,8 +18,7 @@
 | `gpt-5.4` | Step 4、Step 6 合成 | 旗艦模型，2026/03/05 發布 |
 | `gpt-5.4-mini` | Step 3 篩題、Step 5 評分 | 2026/03/17 發布，400k context |
 | `gpt-5.4-nano` | 輕量任務 | 2026/03/17 發布，最低成本 |
-| `gpt-4o` | Step 1 最終合成 | 舊世代旗艦，仍有效 |
-| `gpt-4o-mini` | Step 1 並行分析 | 舊世代小模型，仍有效 |
+| `gpt-5.4-nano` | Step 1 並行分析 | 2026/03/17 發布，最低成本 |
 
 ### Gemini（Google AI Developer API）
 
