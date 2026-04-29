@@ -1,0 +1,10 @@
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "api.cloudflare.com",
+        "*.cloudflare.com"
+      ]
+    }
+  }
+}
