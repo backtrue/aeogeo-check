@@ -58,12 +58,16 @@ export async function callOpenAIDirect(key, model, prompt, isRaw = false) {
   return isRaw ? content : cleanJSON(content);
 }
 
-export async function callGeminiDirect(key, model, prompt, isRaw = false) {
+export async function callGeminiDirect(key, model, prompt, isRaw = false, responseSchema = null) {
   const body = {
-    contents: [{ parts: [{ text: isRaw ? prompt : (prompt + " (Output strictly valid JSON)") }] }]
+    contents: [{ parts: [{ text: prompt }] }]
   };
   if (!isRaw) {
+    body.systemInstruction = { parts: [{ text: 'You must output only valid JSON. No markdown, no explanation, no extra text.' }] };
     body.generationConfig = { response_mime_type: "application/json" };
+    if (responseSchema) {
+      body.generationConfig.responseSchema = responseSchema;
+    }
   }
 
   const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
@@ -71,7 +75,7 @@ export async function callGeminiDirect(key, model, prompt, isRaw = false) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  
+
   const data = await resp.json();
   if (data.error) {
     throw new Error(`Gemini (${model}): ${data.error.message}`);

@@ -58,7 +58,7 @@ export default function Step4({ data, loading }) {
  * Step 4 邏輯函數
  */
 export async function runStep4(apiKeys, step1Data, step3Data) {
-  const prompt = `你是一位資深診斷師。請針對「${step1Data.brandIdentity}」及其核心優勢「${step1Data.differentiation}」，為以下 10 題制定「判讀規則」。\n\n題目清單：${JSON.stringify(step3Data)}\n\n輸出 JSON 陣列，每個物件包含：rule (診斷規則), pass_criteria (及格標準), fail_trigger (扣分關鍵)。`;
+  const prompt = `你是一位資深診斷師。請針對「${step1Data.whoIsIt}」及其核心事實證據「${step1Data.hardcoreFacts}」，為以下 10 題制定「判讀規則」。\n\n題目清單：${JSON.stringify(step3Data)}\n\n輸出 JSON 陣列，每個物件包含：rule (診斷規則), pass_criteria (及格標準), fail_trigger (扣分關鍵)。`;
   
   const result = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4', prompt);
   return Array.isArray(result) ? result : [];

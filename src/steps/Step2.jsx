@@ -57,6 +57,19 @@ export async function runStep2(apiKeys, step1Data) {
   const { whatItDoes, searchThemes, userPersonas, hardcoreFacts } = step1Data;
   const prompt = `你是一位「搜尋行為研究員」。請針對以下事實設計 30 個中立搜尋提問：\n內容與規格：${whatItDoes}\n主題：${searchThemes}\n受眾意圖：${userPersonas}\n證據數據：${hardcoreFacts}\n輸出 JSON 陣列 [{type, question, check, ideal, gap}]，確保問題純粹模擬使用者搜尋行為，禁止包含品牌推廣字眼。`;
   
-  const result = await callGeminiDirect(apiKeys.gemini, 'gemini-2.5-flash', prompt);
+  const arraySchema = {
+    type: "ARRAY",
+    items: {
+      type: "OBJECT",
+      properties: {
+        type: { type: "STRING" },
+        question: { type: "STRING" },
+        check: { type: "STRING" },
+        ideal: { type: "STRING" },
+        gap: { type: "STRING" }
+      }
+    }
+  };
+  const result = await callGeminiDirect(apiKeys.gemini, 'gemini-2.5-flash', prompt, false, arraySchema);
   return Array.isArray(result) ? result : (Object.values(result).find(v => Array.isArray(v)) || []);
 }

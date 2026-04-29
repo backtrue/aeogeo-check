@@ -51,7 +51,7 @@ export default function Step3({ data, loading }) {
  * Step 3 邏輯函數
  */
 export async function runStep3(apiKeys, step1Data, step2Data) {
-  const prompt = `你是 AEO 診斷專家。請從以下 30 題中，針對「${step1Data.brandIdentity}」挑選出最具代表性、最能測出市場覆蓋率的 10 題。\n\n題目池：${JSON.stringify(step2Data)}\n\n輸出 JSON 陣列，直接回傳挑選出的 10 個物件即可。`;
+  const prompt = `你是 AEO 診斷專家。請從以下 30 題中，針對「${step1Data.whoIsIt}」挑選出最具代表性、最能測出市場覆蓋率的 10 題。\n\n題目池：${JSON.stringify(step2Data)}\n\n輸出 JSON 陣列，直接回傳挑選出的 10 個物件即可。`;
   
   const result = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', prompt);
   return Array.isArray(result) ? result.slice(0, 10) : [];

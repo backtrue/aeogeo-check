@@ -67,7 +67,7 @@ export default function Step6({ data, loading }) {
  * Step 6 邏輯函數
  */
 export async function runStep6(apiKeys, step1Data, step5Results) {
-  const prompt = `你是 AEO 增長顧問。針對「${step1Data.brandName}」在實測中發現的缺口：${JSON.stringify(step5Results)}，請規劃 5 個具體的 30 天優化任務。\n\n輸出 JSON 陣列 [{category, task, detail, priority, effort}]`;
+  const prompt = `你是 AEO 增長顧問。針對「${step1Data.whoIsIt}」在實測中發現的缺口：${JSON.stringify(step5Results)}，請規劃 5 個具體的 30 天優化任務。\n\n輸出 JSON 陣列 [{category, task, detail, priority, effort}]`;
   
   const result = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4', prompt);
   return Array.isArray(result) ? result : [];
