@@ -92,7 +92,7 @@ export async function executeStep1(url, apiKeys) {
   `;
 
   const [resA, resB] = await Promise.all([
-    callOpenAIDirect(apiKeys.openai, 'gpt-5.4-nano', extractionPrompt).catch(e => ({ error: e.message })),
+    callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', extractionPrompt).catch(e => ({ error: e.message })),
     callGeminiDirect(apiKeys.gemini, 'gemini-2.5-flash', extractionPrompt).catch(e => ({ error: e.message }))
   ]);
 
