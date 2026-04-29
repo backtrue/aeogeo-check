@@ -78,7 +78,8 @@ export async function runStep5(apiKeys, topQuestions, auditRules) {
     const prompt = `你是 AEO 評分員。針對問題「${q.question}」，請評估 AI 的召回成效。\n規則：${rule.rule}\n輸出 JSON：{score, summary, recommendation}`;
     
     // 模擬 AI 回答與評分 (這裡簡化為一次呼叫)
-    return await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', prompt);
+    const scored = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', prompt);
+    return { ...scored, question: q.question };
   });
 
   return await Promise.all(tasks);

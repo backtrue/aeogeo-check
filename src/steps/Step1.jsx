@@ -93,7 +93,7 @@ export async function executeStep1(url, apiKeys) {
 
   const [resA, resB] = await Promise.all([
     callOpenAIDirect(apiKeys.openai, 'gpt-4o-mini', extractionPrompt).catch(e => ({ error: e.message })),
-    callGeminiDirect(apiKeys.gemini, 'gemini-1.5-flash', extractionPrompt).catch(e => ({ error: e.message }))
+    callGeminiDirect(apiKeys.gemini, 'gemini-2.5-flash', extractionPrompt).catch(e => ({ error: e.message }))
   ]);
 
   // 2. 合成指令
