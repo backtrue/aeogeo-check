@@ -1,43 +1,65 @@
-# Aeogeo Check - 系統架構說明 (Architecture)
+# Aeogeo Check - 系統架構說明
 
 ## 1. 系統目標
-本系統為一套「AI 搜尋成效診斷顧問」，旨在通過自動化爬蟲與多模型診斷 (GPT/Gemini)，分析品牌在生成式搜尋引擎 (AEO/GEO) 中的表現，並產出可落地的優化建議。
 
-## 2. 核心架構：模組化管線 (Modular Pipeline)
-系統採用 **UI 與 業務邏輯完全解耦** 的架構。所有的診斷邏輯都封裝在 `src/services/steps/` 檔案夾中，每個步驟對應一個獨立的服務。
+本系統是一套 AEO/GEO 搜尋成效診斷工具，透過網站內容抓取、多模型分析與規格化診斷輸出，產出可落地的 AI 搜尋優化建議。
 
-### 2.1 服務與組件映射表
-| 步驟 | 服務層 (Service) | 前端組件 (Component) | 核心職責 |
-| :--- | :--- | :--- | :--- |
-| **Step 1** | `step1.js` | `BrandSummary.jsx` | 品牌身份與 DNA 判斷 |
-| **Step 2** | `step2.js` | `QuestionBank.jsx` | 30 題去品牌化搜尋題庫生成 |
-| **Step 3** | `step3.js` | `TopTenQuestions.jsx` | 戰略篩選 Top 10 核心測試點 |
-| **Step 4** | `step4.js` | `InterpretationRules.jsx` | 9 種情境的判讀規則與建議 |
-| **Step 5** | `step5.js` | `Checklist.jsx` | 模擬實測、AI 裁判打分與 12 欄檢查表 |
-| **Step 6** | `step6.js` | `Roadmap.jsx` | 30 天落地執行優化清單 |
+## 2. 核心架構
 
-## 3. 數據流向 (Data Flow)
-1. **觸發**：使用者輸入 URL，`App.jsx` 調用 `fetchSiteContent` 抓取網頁。
-2. **Step 1**：傳入網頁文本，AI 返回 `step1Data`。
-3. **Step 2-6**：後續步驟會根據 `App.jsx` 的狀態管理，將前一步的結果作為 Input 傳給下一步。
-4. **持久化**：所有 `result` 物件會通過 `saveToDB` 存入 `localStorage`，Key 為 `aeo_cache_{url}`。
+系統採用 server-side pipeline：前端只處理輸入、步驟切換、快取與報告呈現；所有 AI 呼叫、網站抓取、schema 生成都集中在 Cloudflare Pages Function。
 
-## 4. AI 策略 (AI Strategy)
-- **分析深度**：Step 1 採用並行分析模式（GPT-mini + Gemini），再由 GPT-5.4 進行合成。
-- **物理隔離**：Step 2 在出題前會進行數據脫敏，剔除 `brandName` 以保證診斷中立性。
-- **自動化實測**：Step 5 執行真實的 API 調用來模擬使用者搜尋。
-
-## 5. 目錄結構
 ```text
-src/
-├── components/          # UI 展示組件 (純顯示邏輯)
-├── services/
-│   ├── ai.js           # 模型接口封裝 (OpenAI/Gemini)
-│   └── steps/          # 步驟核心邏輯 (業務邏輯層)
-├── utils/
-│   └── helpers.js      # 工具函數 (爬蟲、格式化、資料庫)
-└── App.jsx             # 狀態調度與總控台
+Browser React UI
+  -> src/services/pipeline.js
+  -> POST /api/analyze
+  -> functions/api/analyze.js
+  -> OpenAI / Gemini
+  -> R2 AEO_STORAGE
 ```
 
-## 6. 規範約束
-所有開發必須遵循 `AEO_PIPELINE_SPEC.md` 中定義的欄位名稱與輸出格式。
+## 3. 目錄結構
+
+```text
+functions/
+└── api/
+    └── analyze.js          # 6 步診斷管線、AI 呼叫、網站抓取、錯誤處理
+src/
+├── AeoDashboard.jsx        # 前端總控台
+├── components/             # 純展示元件
+├── hooks/
+│   └── usePipeline.js      # 前端狀態、快取、錯誤狀態
+├── services/
+│   └── pipeline.js         # 呼叫 /api/analyze
+├── steps/                  # Step 1-6 報告呈現元件
+└── utils/
+    └── helpers.js          # URL 正規化與 localStorage 快取
+```
+
+## 4. Step 資料契約
+
+| Step | 輸出 |
+| :--- | :--- |
+| Step 1 | `brandIdentity`, `offerings`, `categories`, `audiences`, `differentiation`, `evidence` |
+| Step 2 | 30 題 `{type, question, check, ideal, gap}`，並寫入 R2 `question-bank/` |
+| Step 3 | 10 題 `{priority, question, type, reason, focus}` |
+| Step 4 | 9 種情境 `{scenario, surface, rootCause, optimizationTarget, nextAction}` |
+| Step 5 | ChatGPT/Gemini 雙模型 12 欄檢查表：日期、平台、問題、問題類型、引用、品牌提及、描述正確性、競品、語境、初判、缺口、方向 |
+| Step 6 | 30 天清單 `{category, task, detail, priority, effort, sourceGap}` |
+
+## 5. 安全邊界
+
+- OpenAI/Gemini API key 採 BYOK，預設存於使用者瀏覽器 `localStorage` 的 `aeo_keys`。
+- 每次分析 request 會把 BYOK key 傳到同源 `/api/analyze`，由 server-side pipeline 呼叫 OpenAI/Gemini。
+- 若 request 未帶 BYOK key，Function 可 fallback 到 Cloudflare Secrets：`OPENAI_API_KEY`、`GEMINI_API_KEY`。
+- 診斷結果另以 `aeo_cache_{url}` 快取於 localStorage。
+- 每個成功 step 會寫入 R2 bucket `aeogeo-check-data`。
+- Step 2 的 30 題會寫入 `question-bank/sets/` 與 `question-bank/questions/`，作為長期問題庫。
+- `/api/analyze` 會驗證 `url` 與 `step`，並以結構化錯誤回傳。
+
+## 6. 外部依據
+
+- Cloudflare Pages Functions 使用 file-based routing，`functions/api/analyze.js` 對應 `/api/analyze`：https://developers.cloudflare.com/pages/functions/routing/
+- Cloudflare Pages Functions 的 Secrets 可從 `context.env` 存取：https://developers.cloudflare.com/pages/functions/bindings/
+- Vite 官方文件指出 client bundle 只能安全使用非敏感公開變數，敏感值不應暴露到前端：https://vite.dev/guide/env-and-mode/
+- OpenAI 官方模型文件列出可用模型與 API 使用方式：https://platform.openai.com/docs/models
+- Gemini Structured Output 官方文件支援 JSON structured output：https://ai.google.dev/gemini-api/docs/structured-output
