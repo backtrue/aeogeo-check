@@ -1,7 +1,9 @@
 
 import React from 'react';
 import { ListChecks, ShieldCheck, ShieldAlert, Zap } from 'lucide-react';
-import { callOpenAIDirect, callGeminiDirect } from '../services/ai';
+import { callOpenAIDirect } from '../services/ai';
+
+const STEP5_SIMULATION_MODE = 'cold-start-v2';
 
 /**
  * Step 5 完整模組：UI + 實測評分邏輯
@@ -75,10 +77,50 @@ export default function Step5({ data, loading }) {
 export async function runStep5(apiKeys, topQuestions, auditRules) {
   const tasks = topQuestions.map(async (q, idx) => {
     const rule = auditRules[idx] || auditRules[0];
-    const prompt = `你是 AEO 評分員。針對問題「${q.question}」，請評估 AI 的召回成效。\n規則：${rule.rule}\n輸出 JSON：{score, summary, recommendation}`;
-    
-    // 模擬 AI 回答與評分 (這裡簡化為一次呼叫)
-    return await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', prompt);
+    const coldPrompt = `你正在模擬一般使用者在全新對話中提出單一問題時，模型可能會直接給出的回答。
+
+限制：
+1. 只能根據題目本身回答。
+2. 不得假設你知道任何待檢查品牌、網站、前序分析、判讀規則或內部資料。
+3. 不得宣稱已搜尋網路、已查看網站、已引用來源或已取得即時資料。
+4. 若題目需要最新資訊但無法確認，回答要保持一般性。
+
+問題：${q.question}
+
+輸出 JSON：{"simulatedAnswer":"完整但精簡的回答，不要加入來源引用標記"}`;
+
+    const coldResult = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', coldPrompt);
+    const simulatedAnswer = typeof coldResult?.simulatedAnswer === 'string' ? coldResult.simulatedAnswer.trim() : '';
+    if (!simulatedAnswer) throw new Error(`第 ${idx + 1} 題冷啟動模擬回答為空。`);
+
+    const judgePrompt = `你是 AEO 評分員。請只根據下方「已固定的冷啟動回答」做事後判讀。
+
+重要限制：
+1. 不得改寫、補寫、擴寫或重新產生冷啟動回答。
+2. simulatedAnswer 必須原文放入輸出。
+3. 本流程沒有官方搜尋 citation metadata，因此 aiCitesContent 必須填 false。
+4. score 只評估這段固定回答是否符合規則，不得因為你知道其他品牌背景而加分。
+
+問題：${q.question}
+規則：${rule.rule || JSON.stringify(rule)}
+已固定的冷啟動回答：${simulatedAnswer}
+
+輸出 JSON：{
+  "score":0,
+  "summary":"診斷摘要",
+  "recommendation":"下一步建議",
+  "simulatedAnswer":"必須與已固定的冷啟動回答完全相同",
+  "aiCitesContent":false
+}`;
+
+    const judged = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', judgePrompt);
+    return {
+      ...judged,
+      question: q.question,
+      simulatedAnswer,
+      aiCitesContent: false,
+      simulationMode: STEP5_SIMULATION_MODE
+    };
   });
 
   return await Promise.all(tasks);

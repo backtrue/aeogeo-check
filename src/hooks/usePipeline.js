@@ -3,6 +3,24 @@ import { useState, useEffect } from 'react';
 import { diagnosticPipeline } from '../services/pipeline';
 import { normalizeUrl, loadFromDB } from '../utils/helpers';
 
+const STEP5_SIMULATION_MODE = 'cold-start-v2';
+
+function hasCurrentStep5Data(result) {
+  const rows = Array.isArray(result?.step5) ? result.step5 : [];
+  return rows.length > 0 && rows.every((row) => row?.simulationMode === STEP5_SIMULATION_MODE);
+}
+
+function normalizeCachedResult(cached) {
+  if (!cached) return cached;
+  if (cached.step5 && !hasCurrentStep5Data(cached)) {
+    const next = { ...cached };
+    delete next.step5;
+    delete next.step6;
+    return next;
+  }
+  return cached;
+}
+
 export function usePipeline() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,7 +65,7 @@ export function usePipeline() {
     e.preventDefault();
     if (!url) return;
     const targetUrl = normalizeUrl(url);
-    const cached = loadFromDB(targetUrl);
+    const cached = normalizeCachedResult(loadFromDB(targetUrl));
     if (cached) {
       setResult(cached);
       if (cached.url || targetUrl) setUrl(cached.url || targetUrl); // 同步網址狀態
