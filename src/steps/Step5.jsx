@@ -33,7 +33,7 @@ function getProviderStats(rows) {
 function getCriticalQuestions(rows) {
   const grouped = new Map();
   rows.forEach((row) => {
-    if ((Number(row.score) || 0) >= 60 && !row.competitorDominanceRisk) return;
+    if (!row.competitorDominanceRisk) return;
     const key = row.question || `問題 ${row.questionIndex || grouped.size + 1}`;
     const current = grouped.get(key) || { question: key, type: row.type, questionIndex: row.questionIndex, rows: [] };
     current.rows.push(row);
@@ -138,7 +138,7 @@ export default function Step5({ data, onRefresh, loading }) {
             <AlertTriangle size={20} />
             <div>
               <h3 className="outfit">優先修正問題</h3>
-              <p>以下問題至少有一個 LLM 判定為嚴重缺口，或出現「競品被提及但本品牌未被提及/引用」，應優先補內容或修正品牌語境。</p>
+              <p>以下只列出「競品被提及，但本品牌未被提及或未被引用」的問題；單純沒提任何商業品牌的回答不列入此清單。</p>
             </div>
           </div>
           <div className="critical-list">
