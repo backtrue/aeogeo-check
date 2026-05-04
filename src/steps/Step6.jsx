@@ -1,19 +1,35 @@
-
-import React from 'react';
-import { Rocket, Target, FileText, Share2, Search, Settings } from 'lucide-react';
-import { callOpenAIDirect } from '../services/ai';
+import { Rocket, Target, FileText, Share2, Search, Settings, Clock, AlertCircle } from 'lucide-react';
 
 const ICON_MAP = {
-  '定位': Target,
-  '內容': FileText,
-  '傳播': Share2,
-  '技術': Settings,
-  '搜尋': Search
+  定位: Target,
+  內容: FileText,
+  傳播: Share2,
+  技術: Settings,
+  搜尋: Search,
+  商業: Rocket
 };
 
-/**
- * Step 6 完整模組：UI + 優化路徑生成邏輯
- */
+const PRIORITY_ORDER = ['P0', 'P1', 'P2'];
+
+function getPriorityBuckets(items) {
+  const buckets = new Map(PRIORITY_ORDER.map((priority) => [priority, []]));
+  items.forEach((item, index) => {
+    const priority = PRIORITY_ORDER.includes(item.priority) ? item.priority : 'P2';
+    buckets.get(priority).push({ ...item, originalIndex: index });
+  });
+  return [...buckets.entries()].filter(([, tasks]) => tasks.length > 0);
+}
+
+function summarize(items) {
+  return {
+    total: items.length,
+    p0: items.filter((item) => item.priority === 'P0').length,
+    p1: items.filter((item) => item.priority === 'P1').length,
+    p2: items.filter((item) => item.priority === 'P2').length,
+    categories: [...new Set(items.map((item) => item.category).filter(Boolean))].join('、') || '未分類'
+  };
+}
+
 export default function Step6({ data, loading }) {
   if (!data && !loading) return null;
 
@@ -21,54 +37,84 @@ export default function Step6({ data, loading }) {
     return (
       <div className="flex-center" style={{ padding: '4rem' }}>
         <div className="spinner"></div>
-        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>正在根據診斷結果，為您量身打造 30 天 AEO 優化路徑...</p>
+        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>正在整理 30 天優化清單...</p>
       </div>
     );
   }
 
+  const summary = summarize(data);
+  const buckets = getPriorityBuckets(data);
+
   return (
-    <div className="animate-fade-in">
-      <div style={{ marginBottom: '2rem' }}>
-        <h2 className="outfit" style={{ margin: 0 }}>Step 6｜30 天 AEO 優化路徑規劃</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-          基於 Step 5 的缺口分析，這是您未來一個月最關鍵的執行清單。
-        </p>
+    <div className="animate-fade-in roadmap-view">
+      <div className="roadmap-hero">
+        <div>
+          <h2 className="outfit" style={{ margin: 0 }}>Step 6｜30 天優化清單</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.6rem' }}>依優先級整理成可執行 roadmap，從最高影響缺口先處理。</p>
+        </div>
+        <div className="roadmap-summary-grid">
+          <div className="roadmap-stat"><strong>{summary.total}</strong><span>任務</span></div>
+          <div className="roadmap-stat urgent"><strong>{summary.p0}</strong><span>P0</span></div>
+          <div className="roadmap-stat"><strong>{summary.p1}</strong><span>P1</span></div>
+          <div className="roadmap-stat"><strong>{summary.p2}</strong><span>P2</span></div>
+        </div>
       </div>
 
-      <div className="grid-2">
-        {data?.map((item, idx) => {
-          const Icon = ICON_MAP[item.category] || Rocket;
-          return (
-            <div key={idx} className="glass-card" style={{ padding: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
-                <div style={{ background: 'var(--accent-primary)', color: 'white', padding: '10px', borderRadius: '10px' }}>
-                  <Icon size={20} />
-                </div>
-                <h3 className="outfit" style={{ margin: 0, fontSize: '1.25rem' }}>{item.task}</h3>
+      <div className="roadmap-focus-strip">
+        <span className="tag">涵蓋面向</span>
+        <p>{summary.categories}</p>
+      </div>
+
+      <div className="roadmap-lanes">
+        {buckets.map(([priority, tasks]) => (
+          <section key={priority} className="roadmap-lane">
+            <div className="roadmap-lane-header">
+              <div>
+                <span className={`priority-pill ${priority.toLowerCase()}`}>{priority}</span>
+                <h3 className="outfit">{priority === 'P0' ? '立即處理' : priority === 'P1' ? '本週排程' : '本月優化'}</h3>
               </div>
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                  <strong>執行細節：</strong> {item.detail}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                  <span className="tag" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)' }}>{item.priority}</span>
-                  <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>預計耗時：{item.effort}</span>
-                </div>
-              </div>
+              <span>{tasks.length} 項</span>
             </div>
-          );
-        })}
+
+            <div className="roadmap-task-list">
+              {tasks.map((item) => {
+                const Icon = ICON_MAP[item.category] || Rocket;
+                return (
+                  <article key={`${item.task}-${item.originalIndex}`} className="roadmap-task-card">
+                    <div className="task-index">{String(item.originalIndex + 1).padStart(2, '0')}</div>
+                    <div className="task-main">
+                      <div className="task-title-row">
+                        <div className="task-icon"><Icon size={18} /></div>
+                        <div>
+                          <span className="task-category">{item.category || '未分類'}</span>
+                          <h4 className="outfit">{item.task}</h4>
+                        </div>
+                      </div>
+
+                      <div className="task-section action">
+                        <strong>執行動作</strong>
+                        <p>{item.detail}</p>
+                      </div>
+
+                      {item.sourceGap && (
+                        <div className="task-section gap">
+                          <AlertCircle size={15} />
+                          <p><strong>對應缺口：</strong>{item.sourceGap}</p>
+                        </div>
+                      )}
+
+                      <div className="task-meta-row">
+                        <span className="task-meta"><Clock size={14} /> {item.effort || '未估工時'}</span>
+                        <span className={`priority-pill ${priority.toLowerCase()}`}>{priority}</span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
-}
-
-/**
- * Step 6 邏輯函數
- */
-export async function runStep6(apiKeys, step1Data, step5Results) {
-  const prompt = `你是 AEO 增長顧問。針對「${step1Data.brandName}」在實測中發現的缺口：${JSON.stringify(step5Results)}，請規劃 5 個具體的 30 天優化任務。\n\n輸出 JSON 陣列 [{category, task, detail, priority, effort}]`;
-  
-  const result = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4', prompt);
-  return Array.isArray(result) ? result : [];
 }

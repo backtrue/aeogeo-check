@@ -1,127 +1,242 @@
+import { AlertTriangle, BarChart3, Bot, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
-import React from 'react';
-import { ListChecks, ShieldCheck, ShieldAlert, Zap } from 'lucide-react';
-import { callOpenAIDirect } from '../services/ai';
+function statusForScore(score) {
+  if (score >= 80) return { label: '優良', color: '#10b981', icon: ShieldCheck, className: 'good' };
+  if (score >= 60) return { label: '待優化', color: '#f59e0b', icon: Zap, className: 'warn' };
+  return { label: '嚴重缺口', color: '#ef4444', icon: ShieldAlert, className: 'critical' };
+}
 
-const STEP5_SIMULATION_MODE = 'cold-start-v2';
+function getProviders(rows) {
+  const order = ['ChatGPT', 'Gemini'];
+  const found = [...new Set(rows.map((row) => row.platform || row.provider).filter(Boolean))];
+  return [...order.filter((name) => found.includes(name)), ...found.filter((name) => !order.includes(name))];
+}
 
-/**
- * Step 5 完整模組：UI + 實測評分邏輯
- */
-export default function Step5({ data, loading }) {
+function toPercent(value) {
+  return `${Math.round(value)}%`;
+}
+
+function getProviderStats(rows) {
+  return getProviders(rows).map((provider) => {
+    const providerRows = rows.filter((row) => (row.platform || row.provider) === provider);
+    const total = providerRows.length || 1;
+    const mentionRate = (providerRows.filter((row) => row.aiMentionsBrand).length / total) * 100;
+    const correctRate = (providerRows.filter((row) => row.aiDescribesBrandCorrectly).length / total) * 100;
+    const severeCount = providerRows.filter((row) => Number(row.score) < 60 || row.competitorDominanceRisk).length;
+    const competitorHitCount = providerRows.filter((row) => row.competitorHit).length;
+    const competitorDominanceCount = providerRows.filter((row) => row.competitorDominanceRisk).length;
+    const averageScore = providerRows.reduce((sum, row) => sum + (Number(row.score) || 0), 0) / total;
+    return { provider, total, mentionRate, correctRate, severeCount, competitorHitCount, competitorDominanceCount, averageScore };
+  });
+}
+
+function getCriticalQuestions(rows) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    if ((Number(row.score) || 0) >= 60 && !row.competitorDominanceRisk) return;
+    const key = row.question || `問題 ${row.questionIndex || grouped.size + 1}`;
+    const current = grouped.get(key) || { question: key, type: row.type, questionIndex: row.questionIndex, rows: [] };
+    current.rows.push(row);
+    grouped.set(key, current);
+  });
+  return [...grouped.values()].sort((a, b) => (a.questionIndex || 99) - (b.questionIndex || 99));
+}
+
+function PlatformBadge({ row }) {
+  const isGemini = (row.platform || '').toLowerCase().includes('gemini');
+  const Icon = isGemini ? Sparkles : Bot;
+  return (
+    <span className={`platform-badge ${isGemini ? 'gemini' : 'chatgpt'}`}>
+      <Icon size={14} /> {row.platform || 'ChatGPT'}
+    </span>
+  );
+}
+
+function getFailureReasons(row) {
+  const explicitReasons = Array.isArray(row.failureReasons) ? row.failureReasons.filter(Boolean) : [];
+  const inferredReasons = [];
+  if (!row.aiMentionsBrand) inferredReasons.push('LLM 回答沒有提到本品牌');
+  if (!row.aiCitesContent) inferredReasons.push('LLM 回答沒有引用或連回網站內容');
+  if (!row.aiDescribesBrandCorrectly) inferredReasons.push('LLM 對品牌描述不完整或不正確');
+  if (row.competitorDominanceRisk) inferredReasons.push('同一回答內有競品，但本品牌未被提及或引用');
+  return [...new Set([...explicitReasons, ...inferredReasons])];
+}
+
+function getEvidenceSignals(row) {
+  const signals = Array.isArray(row.evidenceSignals) ? row.evidenceSignals.filter(Boolean) : [];
+  if (Array.isArray(row.competitorsMentioned) && row.competitorsMentioned.length) {
+    signals.push(`同回答出現其他品牌：${row.competitorsMentioned.join('、')}`);
+  }
+  if (row.brandContext && row.brandContext !== '目前資料不足') signals.push(`品牌語境：${row.brandContext}`);
+  return [...new Set(signals)];
+}
+
+export default function Step5({ data, onRefresh, loading }) {
   if (!data && !loading) return null;
 
   if (loading && !data) {
     return (
       <div className="flex-center" style={{ padding: '4rem' }}>
         <div className="spinner"></div>
-        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>正在模擬 AI 搜尋並根據規則進行即時評分...</p>
+        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>正在產出 ChatGPT / Gemini 雙模型檢核表...</p>
       </div>
     );
   }
 
+  const stats = getProviderStats(data);
+  const criticalQuestions = getCriticalQuestions(data);
+
   return (
-    <div className="animate-fade-in">
-      <div style={{ marginBottom: '2rem' }}>
-        <h2 className="outfit" style={{ margin: 0 }}>Step 5｜AEO 成效檢查表</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-          這是在 Google / OpenAI 等搜尋環境下的真實模擬結果。我們根據 Step 4 的標準進行了 12 個維度的深度掃描
-        </p>
+    <div className="animate-fade-in step5-view">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
+        <div>
+          <h2 className="outfit" style={{ margin: 0 }}>Step 5｜AI 搜尋成效檢查表</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>同時比較 ChatGPT 與 Gemini 的品牌覆蓋率、描述正確率與嚴重缺口。</p>
+        </div>
+        <button type="button" onClick={() => onRefresh(5)} className="step-item" disabled={loading} style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <RefreshCw size={14} style={{ marginRight: '6px' }} /> {loading ? '分析中...' : '重新分析'}
+        </button>
       </div>
 
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="checklist-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)' }}>
-              <th style={{ padding: '1.2rem', textAlign: 'left', width: '40%' }}>診斷項目 (測試提問)</th>
-              <th style={{ padding: '1.2rem', textAlign: 'center' }}>召回狀態</th>
-              <th style={{ padding: '1.2rem', textAlign: 'left' }}>診斷摘要</th>
-              <th style={{ padding: '1.2rem', textAlign: 'center' }}>得分</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.map((res, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '1.2rem' }}>
-                  <p className="outfit" style={{ fontWeight: 500, margin: 0 }}>{res.question}</p>
-                </td>
-                <td style={{ padding: '1.2rem', textAlign: 'center' }}>
-                  {res.score >= 80 ? (
-                    <div style={{ color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ShieldCheck size={18} /> 優良</div>
-                  ) : res.score >= 60 ? (
-                    <div style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Zap size={18} /> 待優化</div>
-                  ) : (
-                    <div style={{ color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ShieldAlert size={18} /> 嚴重缺口</div>
-                  )}
-                </td>
-                <td style={{ padding: '1.2rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  {res.summary}
-                </td>
-                <td style={{ padding: '1.2rem', textAlign: 'center' }}>
-                  <span className="outfit" style={{ fontWeight: 'bold', fontSize: '1.1rem', color: res.score >= 80 ? '#10b981' : '#ef4444' }}>
-                    {res.score}
-                  </span>
-                </td>
-              </tr>
+      <section className="coverage-panel">
+        <div className="coverage-panel-title">
+          <BarChart3 size={18} />
+          <h3 className="outfit">雙模型覆蓋率概覽</h3>
+        </div>
+        <div className="coverage-grid">
+          {stats.map((stat) => (
+            <article key={stat.provider} className="coverage-card">
+              <div className="coverage-card-header">
+                <span className={`platform-badge ${stat.provider === 'Gemini' ? 'gemini' : 'chatgpt'}`}>{stat.provider}</span>
+                <strong>{Math.round(stat.averageScore)}</strong>
+              </div>
+              <div className="coverage-bars">
+                <div className="coverage-bar-row">
+                  <span>品牌提及率</span>
+                  <div className="coverage-bar"><i style={{ width: toPercent(stat.mentionRate) }} /></div>
+                  <b>{toPercent(stat.mentionRate)}</b>
+                </div>
+                <div className="coverage-bar-row">
+                  <span>正確描述率</span>
+                  <div className="coverage-bar"><i style={{ width: toPercent(stat.correctRate) }} /></div>
+                  <b>{toPercent(stat.correctRate)}</b>
+                </div>
+              </div>
+              <div className="coverage-card-footer">
+                <span>{stat.total} 筆檢核</span>
+                <span className={stat.severeCount > 0 ? 'danger-count' : ''}>{stat.severeCount} 個嚴重缺口</span>
+                <span className={stat.competitorDominanceCount > 0 ? 'danger-count' : ''}>{stat.competitorDominanceCount} 個競品壓過</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {criticalQuestions.length > 0 && (
+        <section className="critical-panel">
+          <div className="critical-title">
+            <AlertTriangle size={20} />
+            <div>
+              <h3 className="outfit">優先修正問題</h3>
+              <p>以下問題至少有一個 LLM 判定為嚴重缺口，或出現「競品被提及但本品牌未被提及/引用」，應優先補內容或修正品牌語境。</p>
+            </div>
+          </div>
+          <div className="critical-list">
+            {criticalQuestions.map((item) => (
+              <article key={item.question} className="critical-item">
+                <div className="critical-question-row">
+                  <span className="critical-index">#{item.questionIndex || '-'}</span>
+                  <div>
+                    <span className="tag">{item.type}</span>
+                    <h4 className="outfit">{item.question}</h4>
+                  </div>
+                </div>
+                <div className="critical-models">
+                  {item.rows.map((row) => (
+                    <div key={`${row.platform}-${row.question}`} className="critical-model-card">
+                      <div className="critical-model-card-head">
+                        <PlatformBadge row={row} />
+                        <strong>{row.score} 分</strong>
+                      </div>
+                      {row.competitorDominanceRisk && <p className="competitor-hit-line">競品壓過：{row.competitorsMentioned.join('、')} 被提及，但本品牌未被提及或引用。</p>}
+                      {row.simulatedAnswer && (
+                        <div className="llm-answer-box">
+                          <span>LLM 模擬回答</span>
+                          <p>{row.simulatedAnswer}</p>
+                        </div>
+                      )}
+                      <div className="judgement-grid">
+                        <div>
+                          <span>為什麼被判定有問題</span>
+                          <ul>
+                            {getFailureReasons(row).map((reason) => <li key={reason}>{reason}</li>)}
+                          </ul>
+                        </div>
+                        <div>
+                          <span>判斷線索</span>
+                          <ul>
+                            {getEvidenceSignals(row).map((signal) => <li key={signal}>{signal}</li>)}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="critical-gap-box">
+                        <span>對應缺口</span>
+                        <p>{row.gap}</p>
+                      </div>
+                      <small>下一步：{row.nextOptimization}</small>
+                    </div>
+                  ))}
+                </div>
+              </article>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </section>
+      )}
+
+      <div className="step5-results-list">
+        {data.map((row, index) => {
+          const status = statusForScore(Number(row.score) || 0);
+          const StatusIcon = status.icon;
+          return (
+            <div key={`${row.platform}-${row.question}-${index}`} className={`step5-result-card ${status.className}`}>
+              <div className="step5-result-head">
+                <div>
+                  <div className="step5-tags">
+                    <PlatformBadge row={row} />
+                    <span className="tag">Q{row.questionIndex || index + 1}</span>
+                    <span className="tag">{row.type}</span>
+                  </div>
+                  <p className="outfit step5-question">{row.question}</p>
+                </div>
+                <div className={`score-badge ${status.className}`}>
+                  <StatusIcon size={18} />
+                  <span>{status.label}</span>
+                  <strong>{row.score}</strong>
+                </div>
+              </div>
+
+              <div className="metric-grid">
+                <span><CheckCircle2 size={14} /> 引用內容：{row.aiCitesContent ? '是' : '否'}</span>
+                <span><CheckCircle2 size={14} /> 提到品牌：{row.aiMentionsBrand ? '是' : '否'}</span>
+                <span><CheckCircle2 size={14} /> 描述正確：{row.aiDescribesBrandCorrectly ? '是' : '否'}</span>
+                <span className={row.competitorDominanceRisk ? 'competitor-hit-metric' : ''}>競品：{Array.isArray(row.competitorsMentioned) && row.competitorsMentioned.length ? row.competitorsMentioned.join('、') : '無'}</span>
+              </div>
+
+              <div className="step5-detail-grid">
+                {row.competitorDominanceRisk && (
+                  <p className="competitor-hit-detail"><strong>競品壓過</strong>{row.competitorsMentioned.join('、')} 出現在同一個 {row.platform} 模擬回答中，但本品牌未被提及或引用，嚴重性已提高。</p>
+                )}
+                {row.simulatedAnswer && <p><strong>模擬回答摘要</strong>{row.simulatedAnswer}</p>}
+                <p><strong>品牌語境</strong>{row.brandContext}</p>
+                <p><strong>初步判斷</strong>{row.initialJudgement}</p>
+                <p className={status.className === 'critical' ? 'critical-text' : ''}><strong>對應缺口</strong>{row.gap}</p>
+                <p><strong>下一步優化</strong>{row.nextOptimization}</p>
+                <p><strong>摘要</strong>{row.summary}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-/**
- * Step 5 邏輯函數
- */
-export async function runStep5(apiKeys, topQuestions, auditRules) {
-  const tasks = topQuestions.map(async (q, idx) => {
-    const rule = auditRules[idx] || auditRules[0];
-    const coldPrompt = `你正在模擬一般使用者在全新對話中提出單一問題時，模型可能會直接給出的回答。
-
-限制：
-1. 只能根據題目本身回答。
-2. 不得假設你知道任何待檢查品牌、網站、前序分析、判讀規則或內部資料。
-3. 不得宣稱已搜尋網路、已查看網站、已引用來源或已取得即時資料。
-4. 若題目需要最新資訊但無法確認，回答要保持一般性。
-
-問題：${q.question}
-
-輸出 JSON：{"simulatedAnswer":"完整但精簡的回答，不要加入來源引用標記"}`;
-
-    const coldResult = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', coldPrompt);
-    const simulatedAnswer = typeof coldResult?.simulatedAnswer === 'string' ? coldResult.simulatedAnswer.trim() : '';
-    if (!simulatedAnswer) throw new Error(`第 ${idx + 1} 題冷啟動模擬回答為空。`);
-
-    const judgePrompt = `你是 AEO 評分員。請只根據下方「已固定的冷啟動回答」做事後判讀。
-
-重要限制：
-1. 不得改寫、補寫、擴寫或重新產生冷啟動回答。
-2. simulatedAnswer 必須原文放入輸出。
-3. 本流程沒有官方搜尋 citation metadata，因此 aiCitesContent 必須填 false。
-4. score 只評估這段固定回答是否符合規則，不得因為你知道其他品牌背景而加分。
-
-問題：${q.question}
-規則：${rule.rule || JSON.stringify(rule)}
-已固定的冷啟動回答：${simulatedAnswer}
-
-輸出 JSON：{
-  "score":0,
-  "summary":"診斷摘要",
-  "recommendation":"下一步建議",
-  "simulatedAnswer":"必須與已固定的冷啟動回答完全相同",
-  "aiCitesContent":false
-}`;
-
-    const judged = await callOpenAIDirect(apiKeys.openai, 'gpt-5.4-mini', judgePrompt);
-    return {
-      ...judged,
-      question: q.question,
-      simulatedAnswer,
-      aiCitesContent: false,
-      simulationMode: STEP5_SIMULATION_MODE
-    };
-  });
-
-  return await Promise.all(tasks);
 }

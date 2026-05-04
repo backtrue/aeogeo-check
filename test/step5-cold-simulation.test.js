@@ -35,11 +35,13 @@ const topQuestion = {
   focus: '觀察是否提到黑璞數位'
 };
 
-test('冷啟動 prompt 只包含題目與類型，不帶前序品牌資料或 Step4 規則', () => {
+test('冷啟動 prompt 只包含題目，不帶前序品牌資料、Step3 類型或 Step4 規則', () => {
   const prompt = getColdSimulationPrompt(topQuestion, 'ChatGPT');
 
   assert.match(prompt, /台灣有哪些 AI 搜尋優化顧問/);
-  assert.match(prompt, /推薦/);
+  assert.doesNotMatch(prompt, /推薦/);
+  assert.doesNotMatch(prompt, /測試平台/);
+  assert.doesNotMatch(prompt, /問題類型/);
   assert.doesNotMatch(prompt, /黑璞數位/);
   assert.doesNotMatch(prompt, /blackgem/);
   assert.doesNotMatch(prompt, /Step 1/);
@@ -51,8 +53,7 @@ test('冷啟動 prompt 只包含題目與類型，不帶前序品牌資料或 St
 
 test('冷啟動題目物件會移除 Step3 reason 與 focus', () => {
   assert.deepEqual(getQuestionForColdSimulation(topQuestion), {
-    question: '台灣有哪些 AI 搜尋優化顧問可以協助 B2B 網站？',
-    type: '推薦'
+    question: '台灣有哪些 AI 搜尋優化顧問可以協助 B2B 網站？'
   });
 });
 
@@ -88,6 +89,7 @@ test('沒有官方 citation metadata 時，aiCitesContent 一律為 false', () =
   );
 
   assert.equal(row.aiCitesContent, false);
+  assert.equal(row.simulationMode, 'cold-start-v2');
 });
 
 test('simulatedAnswer 未出現品牌時，不得判定為提到品牌', () => {

@@ -552,8 +552,7 @@ rules 必須剛好 9 筆。`;
 
 function getQuestionForColdSimulation(question) {
   return {
-    question: typeof question?.question === 'string' ? question.question : '',
-    type: typeof question?.type === 'string' ? question.type : ''
+    question: typeof question?.question === 'string' ? question.question : ''
   };
 }
 
@@ -602,6 +601,7 @@ function normalizeChecklistRow(row, question, index, provider, platform, errorMe
     date: typeof row?.date === 'string' ? row.date : today,
     provider,
     platform,
+    simulationMode: 'cold-start-v2',
     questionIndex: index + 1,
     question: typeof row?.question === 'string' ? row.question : question.question,
     type: typeof row?.type === 'string' ? row.type : question.type,
@@ -628,7 +628,7 @@ function normalizeChecklistRow(row, question, index, provider, platform, errorMe
 function getColdSimulationPrompt(question, platform) {
   const coldQuestion = getQuestionForColdSimulation(question);
   return `
-你正在模擬一般使用者在全新 ${platform} 對話中提出單一問題時，模型可能會直接給出的回答。
+你正在模擬一般使用者在全新對話中提出單一問題時，模型可能會直接給出的回答。
 
 限制：
 1. 只能根據題目本身回答。
@@ -636,9 +636,7 @@ function getColdSimulationPrompt(question, platform) {
 3. 不得宣稱已搜尋網路、已查看網站、已引用來源或已取得即時資料。
 4. 若題目需要最新資訊但無法確認，回答要保持一般性。
 
-測試平台：${platform}
 問題：${coldQuestion.question}
-問題類型：${coldQuestion.type}
 
 輸出 JSON object：
 {

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Aeogeo Check</title>
+  <desc id="desc">AEO/GEO AI search visibility diagnostic tool preview image.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.58" stop-color="#111827"/>
+      <stop offset="1" stop-color="#231f13"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7d47a"/>
+      <stop offset="1" stop-color="#c48a2c"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <path d="M0 474 C214 400 374 528 582 452 C787 377 942 386 1200 292 L1200 630 L0 630 Z" fill="#f7d47a" opacity="0.09"/>
+  <path d="M910 106 L1084 106 M997 19 L997 193" stroke="#f7d47a" stroke-width="2" opacity="0.22"/>
+  <path d="M92 116 H1108" stroke="#ffffff" stroke-width="1" opacity="0.11"/>
+  <path d="M92 514 H1108" stroke="#ffffff" stroke-width="1" opacity="0.11"/>
+  <g transform="translate(92 102)">
+    <rect x="0" y="0" width="1016" height="426" rx="34" fill="#111827" opacity="0.82" filter="url(#shadow)"/>
+    <rect x="1" y="1" width="1014" height="424" rx="33" fill="none" stroke="#ffffff" stroke-opacity="0.14"/>
+    <g transform="translate(54 52)">
+      <rect x="0" y="0" width="246" height="48" rx="24" fill="#f7d47a" fill-opacity="0.12" stroke="#f7d47a" stroke-opacity="0.45"/>
+      <circle cx="31" cy="24" r="10" fill="url(#gold)"/>
+      <text x="54" y="31" fill="#f9e7b0" font-family="Inter, Noto Sans TC, Arial, sans-serif" font-size="22" font-weight="700">Aeogeo Check</text>
+      <text x="0" y="126" fill="#ffffff" font-family="Inter, Noto Sans TC, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="0">檢查你的品牌</text>
+      <text x="0" y="202" fill="#ffffff" font-family="Inter, Noto Sans TC, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="0">有沒有被 AI 回答看見</text>
+      <text x="2" y="270" fill="#cbd5e1" font-family="Inter, Noto Sans TC, Arial, sans-serif" font-size="28" font-weight="500">30 題 AI 搜尋測試題庫 · ChatGPT / Gemini 比較 · 30 天優化清單</text>
+    </g>
+    <g transform="translate(758 72)">
+      <rect x="0" y="0" width="184" height="248" rx="24" fill="#0b1220" stroke="#ffffff" stroke-opacity="0.13"/>
+      <rect x="28" y="34" width="128" height="16" rx="8" fill="#f7d47a"/>
+      <rect x="28" y="78" width="128" height="12" rx="6" fill="#94a3b8" opacity="0.58"/>
+      <rect x="28" y="108" width="96" height="12" rx="6" fill="#94a3b8" opacity="0.38"/>
+      <rect x="28" y="154" width="128" height="44" rx="14" fill="#f7d47a" fill-opacity="0.13" stroke="#f7d47a" stroke-opacity="0.34"/>
+      <path d="M55 176 L76 194 L130 136" fill="none" stroke="#f7d47a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

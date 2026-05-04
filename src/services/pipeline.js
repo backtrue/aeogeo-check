@@ -1,49 +1,113 @@
-
-import { executeStep1 } from '../steps/Step1';
-import { runStep2 } from '../steps/Step2';
-import { runStep3 } from '../steps/Step3';
-import { runStep4 } from '../steps/Step4';
-import { runStep5 } from '../steps/Step5';
-import { runStep6 } from '../steps/Step6';
 import { saveToDB, normalizeUrl } from '../utils/helpers';
 
-/**
- * AEO 診斷管線調度員 (單一檔案架構版)
- */
+const STEP_DEPENDENCIES = {
+  3: [2],
+  4: [2, 3],
+  5: [2, 3, 4],
+  6: [5]
+};
+
+const STEP5_SIMULATION_MODE = 'cold-start-v2';
+
+function getStepRecord(result, stepNumber) {
+  return result?.stepRecords?.[String(stepNumber)] || result?.stepRecords?.[stepNumber] || null;
+}
+
+function normalizeProviderName(value) {
+  const name = String(value || '').toLowerCase();
+  if (name.includes('gemini')) return 'gemini';
+  if (name.includes('chatgpt') || name.includes('openai')) return 'openai';
+  return name;
+}
+
+function hasCompleteStep5Data(result) {
+  const rows = Array.isArray(result?.step5) ? result.step5 : [];
+  if (!rows.length) return false;
+  if (rows.some((row) => row?.simulationMode !== STEP5_SIMULATION_MODE)) return false;
+  if (result.providerMode === 'openai-only') {
+    return rows.some((row) => normalizeProviderName(row.platform || row.provider) === 'openai');
+  }
+  if (result.providerMode === 'gemini-only') {
+    return rows.some((row) => normalizeProviderName(row.platform || row.provider) === 'gemini');
+  }
+  const providers = new Set(rows.map((row) => normalizeProviderName(row.platform || row.provider)).filter(Boolean));
+  return providers.has('openai') && providers.has('gemini');
+}
+
+export function isStepCurrent(result, stepNumber) {
+  if (!result?.[`step${stepNumber}`]) return false;
+  if (stepNumber === 5 && !hasCompleteStep5Data(result)) return false;
+  const dependencies = STEP_DEPENDENCIES[stepNumber] || [];
+  if (!dependencies.length) return true;
+  const currentDependencyRecords = dependencies.map((dependencyStep) => getStepRecord(result, dependencyStep));
+  if (currentDependencyRecords.some((record) => !record?.recordId)) return true;
+
+  const stepRecord = getStepRecord(result, stepNumber);
+  if (!stepRecord?.recordId || !stepRecord.dependencies) return false;
+
+  return dependencies.every((dependencyStep, index) => {
+    const currentDependency = currentDependencyRecords[index];
+    const recordedDependency = stepRecord.dependencies[String(dependencyStep)] || stepRecord.dependencies[dependencyStep];
+    return Boolean(currentDependency?.recordId && recordedDependency?.recordId && currentDependency.recordId === recordedDependency.recordId);
+  });
+}
+
+export function getCurrentCompletedSteps(result) {
+  return [1, 2, 3, 4, 5, 6].filter((stepNumber) => isStepCurrent(result, stepNumber));
+}
+
 export const diagnosticPipeline = {
   async run(stepNumber, context) {
-    const { url, apiKeys, result } = context;
+    const { url, result, apiKeys } = context;
     const normalized = normalizeUrl(url);
-    let data;
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: normalized,
+        step: stepNumber,
+        previousResults: result || {},
+        runId: result?.runId,
+        keys: apiKeys || {}
+      })
+    });
 
-    switch (stepNumber) {
-      case 1:
-        data = await executeStep1(normalized, apiKeys);
-        break;
-      case 2:
-        data = await runStep2(apiKeys, result.step1);
-        break;
-      case 3:
-        data = await runStep3(apiKeys, result.step1, result.step2);
-        break;
-      case 4:
-        data = await runStep4(apiKeys, result.step1, result.step3);
-        break;
-      case 5:
-        data = await runStep5(apiKeys, result.step3, result.step4);
-        break;
-      case 6:
-        data = await runStep6(apiKeys, result.step1, result.step5);
-        break;
-      default:
-        throw new Error(`未知的步驟: ${stepNumber}`);
+    const rawText = await response.text();
+    const payload = (() => {
+      try {
+        return rawText ? JSON.parse(rawText) : null;
+      } catch (error) {
+        const preview = rawText.slice(0, 160) || '空白回應';
+        throw new Error(`分析 API 回傳非 JSON（HTTP ${response.status}）：${preview}`, { cause: error });
+      }
+    })();
+
+    if (!response.ok || payload?.error) {
+      throw new Error(payload?.error || `分析 API 失敗: ${response.status}`);
     }
 
-    if (data) {
-      const updatedResult = { ...result, url: normalized, [`step${stepNumber}`]: data };
-      saveToDB(normalized, updatedResult);
-      return updatedResult;
-    }
-    return result;
+    const stepRecords = {
+      ...(result?.stepRecords || {}),
+      [String(stepNumber)]: {
+        step: stepNumber,
+        recordId: payload.storage?.recordId || null,
+        persistedAt: payload.storage?.persistedAt || null,
+        providerMode: payload.providerMode || payload.storage?.providerMode || result?.providerMode || 'dual',
+        stepKey: payload.storage?.stepKey || null,
+        latestStepKey: payload.storage?.latestStepKey || null,
+        dependencies: payload.storage?.dependencies || {}
+      }
+    };
+    const updatedResult = {
+      ...(result || {}),
+      url: payload.url || normalized,
+      runId: payload.runId || result?.runId,
+      providerMode: payload.providerMode || payload.storage?.providerMode || result?.providerMode || 'dual',
+      storage: payload.storage || result?.storage,
+      stepRecords,
+      [`step${stepNumber}`]: payload.data
+    };
+    saveToDB(updatedResult.url, updatedResult);
+    return updatedResult;
   }
 };
