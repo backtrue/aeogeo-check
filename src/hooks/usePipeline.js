@@ -23,6 +23,33 @@ function hasRequiredKeys(keys) {
   return Boolean(keys.openai?.trim() || keys.gemini?.trim());
 }
 
+function trackStepSuccess(stepNumber, updatedResult) {
+  if (!updatedResult?.[`step${stepNumber}`]) return;
+  const eventName = `step_${stepNumber}`;
+  const eventParams = {
+    step_number: stepNumber,
+    step_label: `step ${stepNumber}`,
+    provider_mode: updatedResult.providerMode || 'unknown',
+    run_id: updatedResult.runId || 'unknown'
+  };
+
+  try {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('event', eventName, eventParams);
+    }
+  } catch (trackingError) {
+    console.warn('GA step tracking failed:', trackingError);
+  }
+
+  try {
+    if (typeof window !== 'undefined' && typeof window.fbq === 'function') {
+      window.fbq('trackCustom', eventName, eventParams);
+    }
+  } catch (trackingError) {
+    console.warn('Meta step tracking failed:', trackingError);
+  }
+}
+
 export function usePipeline() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,6 +106,7 @@ export function usePipeline() {
       setResult(updatedResult);
       if (updatedResult.url) setUrl(updatedResult.url);
       setCompletedSteps(getCurrentCompletedSteps(updatedResult));
+      trackStepSuccess(stepNumber, updatedResult);
       return updatedResult;
     } catch (caughtError) {
       console.error('Pipeline failed:', caughtError);
