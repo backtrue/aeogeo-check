@@ -16,7 +16,7 @@ export default function Step4({ data, loading }) {
     <div className="animate-fade-in">
       <div style={{ marginBottom: '2rem' }}>
         <h2 className="outfit" style={{ margin: 0 }}>Step 4｜AI 回答結果判讀規則</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>針對沒引用、沒來源、沒提品牌、描述錯誤、只提競品等情境做診斷。</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>依 SEO106 九種 AI 回答現象，判斷應回 104、105，或補商業決策頁。</p>
       </div>
 
       <div className="grid-2">

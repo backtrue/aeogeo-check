@@ -1,9 +1,14 @@
-import { AlertTriangle, BarChart3, Bot, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, BarChart3, Bot, ChevronDown, RefreshCw, ShieldAlert, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
-function statusForScore(score) {
-  if (score >= 80) return { label: '優良', color: '#10b981', icon: ShieldCheck, className: 'good' };
-  if (score >= 60) return { label: '待優化', color: '#f59e0b', icon: Zap, className: 'warn' };
-  return { label: '嚴重缺口', color: '#ef4444', icon: ShieldAlert, className: 'critical' };
+function statusForRow(row) {
+  if (row?.severity === 'critical') return { label: '嚴重缺口', icon: ShieldAlert, className: 'critical' };
+  if (row?.severity === 'warning') return { label: '待優化', icon: Zap, className: 'warn' };
+  if (row?.severity === 'observe') return { label: '觀察項', icon: ShieldCheck, className: 'good' };
+  const score = Number(row?.score) || 0;
+  if (score >= 80) return { label: '觀察項', icon: ShieldCheck, className: 'good' };
+  if (score >= 60) return { label: '待優化', icon: Zap, className: 'warn' };
+  return { label: '嚴重缺口', icon: ShieldAlert, className: 'critical' };
 }
 
 function getProviders(rows) {
@@ -22,18 +27,19 @@ function getProviderStats(rows) {
     const total = providerRows.length || 1;
     const mentionRate = (providerRows.filter((row) => row.aiMentionsBrand).length / total) * 100;
     const correctRate = (providerRows.filter((row) => row.aiDescribesBrandCorrectly).length / total) * 100;
-    const severeCount = providerRows.filter((row) => Number(row.score) < 60 || row.competitorDominanceRisk).length;
-    const competitorHitCount = providerRows.filter((row) => row.competitorHit).length;
-    const competitorDominanceCount = providerRows.filter((row) => row.competitorDominanceRisk).length;
+    const citationRate = (providerRows.filter((row) => row.citationStatus === '有' || row.aiCitesContent).length / total) * 100;
+    const criticalCount = providerRows.filter((row) => row.severity === 'critical').length;
+    const warningCount = providerRows.filter((row) => row.severity === 'warning').length;
+    const observeCount = providerRows.filter((row) => row.severity === 'observe').length;
     const averageScore = providerRows.reduce((sum, row) => sum + (Number(row.score) || 0), 0) / total;
-    return { provider, total, mentionRate, correctRate, severeCount, competitorHitCount, competitorDominanceCount, averageScore };
+    return { provider, total, mentionRate, correctRate, citationRate, criticalCount, warningCount, observeCount, averageScore };
   });
 }
 
 function getCriticalQuestions(rows) {
   const grouped = new Map();
   rows.forEach((row) => {
-    if (!row.competitorDominanceRisk) return;
+    if (row.severity !== 'critical') return;
     const key = row.question || `問題 ${row.questionIndex || grouped.size + 1}`;
     const current = grouped.get(key) || { question: key, type: row.type, questionIndex: row.questionIndex, rows: [] };
     current.rows.push(row);
@@ -52,26 +58,111 @@ function PlatformBadge({ row }) {
   );
 }
 
-function getFailureReasons(row) {
-  const explicitReasons = Array.isArray(row.failureReasons) ? row.failureReasons.filter(Boolean) : [];
-  const inferredReasons = [];
-  if (!row.aiMentionsBrand) inferredReasons.push('LLM 回答沒有提到本品牌');
-  if (!row.aiCitesContent) inferredReasons.push('LLM 回答沒有引用或連回網站內容');
-  if (!row.aiDescribesBrandCorrectly) inferredReasons.push('LLM 對品牌描述不完整或不正確');
-  if (row.competitorDominanceRisk) inferredReasons.push('同一回答內有競品，但本品牌未被提及或引用');
-  return [...new Set([...explicitReasons, ...inferredReasons])];
-}
-
 function getEvidenceSignals(row) {
   const signals = Array.isArray(row.evidenceSignals) ? row.evidenceSignals.filter(Boolean) : [];
-  if (Array.isArray(row.competitorsMentioned) && row.competitorsMentioned.length) {
-    signals.push(`同回答出現其他品牌：${row.competitorsMentioned.join('、')}`);
+  const nearbyBrands = Array.isArray(row.nearbyBrands) ? row.nearbyBrands : row.competitorsMentioned;
+  if (Array.isArray(nearbyBrands) && nearbyBrands.length) {
+    signals.push(`鄰近品牌：${nearbyBrands.join('、')}`);
   }
+  if (row.citationStatus) signals.push(`引用：${row.citationStatus}`);
+  if (row.mentionStatus) signals.push(`提及：${row.mentionStatus}`);
+  if (row.descriptionStatus) signals.push(`描述：${row.descriptionStatus}`);
   if (row.brandContext && row.brandContext !== '目前資料不足') signals.push(`品牌語境：${row.brandContext}`);
   return [...new Set(signals)];
 }
 
+function valueOrEmpty(value) {
+  if (Array.isArray(value)) return value.length ? value.join('、') : '無';
+  return value || '未判定';
+}
+
+function getRowKey(row, index = 0, prefix = 'row') {
+  return [
+    prefix,
+    row.platform || row.provider || 'model',
+    row.questionIndex || index + 1,
+    row.question || 'question'
+  ].join('::');
+}
+
+function getProblemReason(row) {
+  if (row.answerPhenomenon) return row.answerPhenomenon;
+  if (row.matchedStep4Rule?.rootCause) return row.matchedStep4Rule.rootCause;
+  if (row.initialJudgement) return row.initialJudgement;
+  return '目前資料不足，需重新檢查這題的 AI 回答現象。';
+}
+
+function ActionSummary({ row, compact = false }) {
+  const items = [
+    { label: '為什麼被判定有問題', value: row.userFacingProblem || getProblemReason(row) },
+    { label: '對應缺口', value: row.userFacingGap || row.gap || '目前資料不足，尚未歸因到明確缺口。' },
+    { label: '下一步', value: row.userFacingNextStep || row.nextOptimization || '先補齊可被 AI 引用與辨識的內容證據。' }
+  ];
+
+  return (
+    <div className={`action-summary ${compact ? 'compact' : ''}`}>
+      {items.map((item) => (
+        <div key={item.label} className="action-summary-item">
+          <span>{item.label}</span>
+          <p>{item.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailToggle({ expanded, onClick }) {
+  return (
+    <button type="button" className="judgement-toggle" onClick={onClick} aria-expanded={expanded}>
+      {expanded ? '收起判讀細節' : '查看判讀細節'}
+      <ChevronDown size={16} />
+    </button>
+  );
+}
+
+function JudgementDetails({ row }) {
+  const nearbyBrands = Array.isArray(row.nearbyBrands) ? row.nearbyBrands : row.competitorsMentioned;
+  const evidenceSignals = getEvidenceSignals(row);
+
+  return (
+    <div className="judgement-details">
+      {row.simulatedAnswer && (
+        <div className="llm-answer-box">
+          <span>LLM 模擬回答</span>
+          <p>{row.simulatedAnswer}</p>
+        </div>
+      )}
+
+      {evidenceSignals.length > 0 && (
+        <div className="judgement-grid">
+          <div>
+            <span>判斷線索</span>
+            <ul>
+              {evidenceSignals.map((signal) => <li key={signal}>{signal}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div className="seo106-detail-grid">
+        <p><strong>引用</strong>{valueOrEmpty(row.citationStatus)}</p>
+        <p><strong>提及</strong>{valueOrEmpty(row.mentionStatus)}</p>
+        <p><strong>描述</strong>{valueOrEmpty(row.descriptionStatus)}</p>
+        <p><strong>鄰近品牌</strong>{valueOrEmpty(nearbyBrands)}</p>
+        <p><strong>品牌語境</strong>{valueOrEmpty(row.brandContext)}</p>
+        <p><strong>初步判斷</strong>{valueOrEmpty(row.initialJudgement)}</p>
+        {row.matchedStep4Rule && (
+          <p className="wide"><strong>對應 Step 4 規則</strong>{row.matchedStep4Rule.optimizationTarget}｜{row.matchedStep4Rule.rootCause}</p>
+        )}
+        {row.summary && <p className="wide"><strong>摘要</strong>{row.summary}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function Step5({ data, onRefresh, loading }) {
+  const [expandedRows, setExpandedRows] = useState(() => new Set());
+
   if (!data && !loading) return null;
 
   if (loading && !data) {
@@ -85,13 +176,24 @@ export default function Step5({ data, onRefresh, loading }) {
 
   const stats = getProviderStats(data);
   const criticalQuestions = getCriticalQuestions(data);
+  const toggleDetails = (key) => {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="animate-fade-in step5-view">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
         <div>
           <h2 className="outfit" style={{ margin: 0 }}>Step 5｜AI 搜尋成效檢查表</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>同時比較 ChatGPT 與 Gemini 的品牌覆蓋率、描述正確率與嚴重缺口。</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>依 SEO106 的引用、提及、描述、鄰近四個 Check 判讀 AI 回答現象。</p>
         </div>
         <button type="button" onClick={() => onRefresh(5)} className="step-item" disabled={loading} style={{ background: 'rgba(255,255,255,0.05)' }}>
           <RefreshCw size={14} style={{ marginRight: '6px' }} /> {loading ? '分析中...' : '重新分析'}
@@ -117,6 +219,11 @@ export default function Step5({ data, onRefresh, loading }) {
                   <b>{toPercent(stat.mentionRate)}</b>
                 </div>
                 <div className="coverage-bar-row">
+                  <span>可確認引用</span>
+                  <div className="coverage-bar"><i style={{ width: toPercent(stat.citationRate) }} /></div>
+                  <b>{toPercent(stat.citationRate)}</b>
+                </div>
+                <div className="coverage-bar-row">
                   <span>正確描述率</span>
                   <div className="coverage-bar"><i style={{ width: toPercent(stat.correctRate) }} /></div>
                   <b>{toPercent(stat.correctRate)}</b>
@@ -124,8 +231,9 @@ export default function Step5({ data, onRefresh, loading }) {
               </div>
               <div className="coverage-card-footer">
                 <span>{stat.total} 筆檢核</span>
-                <span className={stat.severeCount > 0 ? 'danger-count' : ''}>{stat.severeCount} 個嚴重缺口</span>
-                <span className={stat.competitorDominanceCount > 0 ? 'danger-count' : ''}>{stat.competitorDominanceCount} 個競品壓過</span>
+                <span className={stat.criticalCount > 0 ? 'danger-count' : ''}>{stat.criticalCount} 個嚴重缺口</span>
+                <span>{stat.warningCount} 個待優化</span>
+                <span>{stat.observeCount} 個觀察項</span>
               </div>
             </article>
           ))}
@@ -138,7 +246,7 @@ export default function Step5({ data, onRefresh, loading }) {
             <AlertTriangle size={20} />
             <div>
               <h3 className="outfit">優先修正問題</h3>
-              <p>以下只列出「競品被提及，但本品牌未被提及或未被引用」的問題；單純沒提任何商業品牌的回答不列入此清單。</p>
+              <p>以下只列出 SEO106 判為 critical 的問題；合理四無答案不列入紅色區塊。</p>
             </div>
           </div>
           <div className="critical-list">
@@ -152,40 +260,21 @@ export default function Step5({ data, onRefresh, loading }) {
                   </div>
                 </div>
                 <div className="critical-models">
-                  {item.rows.map((row) => (
-                    <div key={`${row.platform}-${row.question}`} className="critical-model-card">
-                      <div className="critical-model-card-head">
-                        <PlatformBadge row={row} />
-                        <strong>{row.score} 分</strong>
-                      </div>
-                      {row.competitorDominanceRisk && <p className="competitor-hit-line">競品壓過：{row.competitorsMentioned.join('、')} 被提及，但本品牌未被提及或引用。</p>}
-                      {row.simulatedAnswer && (
-                        <div className="llm-answer-box">
-                          <span>LLM 模擬回答</span>
-                          <p>{row.simulatedAnswer}</p>
+                  {item.rows.map((row, rowIndex) => {
+                    const rowKey = getRowKey(row, rowIndex, `critical-${item.questionIndex || item.question}`);
+                    const expanded = expandedRows.has(rowKey);
+                    return (
+                      <div key={rowKey} className="critical-model-card">
+                        <div className="critical-model-card-head">
+                          <PlatformBadge row={row} />
+                          <strong>{row.score} 分</strong>
                         </div>
-                      )}
-                      <div className="judgement-grid">
-                        <div>
-                          <span>為什麼被判定有問題</span>
-                          <ul>
-                            {getFailureReasons(row).map((reason) => <li key={reason}>{reason}</li>)}
-                          </ul>
-                        </div>
-                        <div>
-                          <span>判斷線索</span>
-                          <ul>
-                            {getEvidenceSignals(row).map((signal) => <li key={signal}>{signal}</li>)}
-                          </ul>
-                        </div>
+                        <ActionSummary row={row} compact />
+                        <DetailToggle expanded={expanded} onClick={() => toggleDetails(rowKey)} />
+                        {expanded && <JudgementDetails row={row} />}
                       </div>
-                      <div className="critical-gap-box">
-                        <span>對應缺口</span>
-                        <p>{row.gap}</p>
-                      </div>
-                      <small>下一步：{row.nextOptimization}</small>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </article>
             ))}
@@ -195,10 +284,12 @@ export default function Step5({ data, onRefresh, loading }) {
 
       <div className="step5-results-list">
         {data.map((row, index) => {
-          const status = statusForScore(Number(row.score) || 0);
+          const status = statusForRow(row);
           const StatusIcon = status.icon;
+          const rowKey = getRowKey(row, index, 'result');
+          const expanded = expandedRows.has(rowKey);
           return (
-            <div key={`${row.platform}-${row.question}-${index}`} className={`step5-result-card ${status.className}`}>
+            <div key={rowKey} className={`step5-result-card ${status.className}`}>
               <div className="step5-result-head">
                 <div>
                   <div className="step5-tags">
@@ -215,24 +306,9 @@ export default function Step5({ data, onRefresh, loading }) {
                 </div>
               </div>
 
-              <div className="metric-grid">
-                <span><CheckCircle2 size={14} /> 引用內容：{row.aiCitesContent ? '是' : '否'}</span>
-                <span><CheckCircle2 size={14} /> 提到品牌：{row.aiMentionsBrand ? '是' : '否'}</span>
-                <span><CheckCircle2 size={14} /> 描述正確：{row.aiDescribesBrandCorrectly ? '是' : '否'}</span>
-                <span className={row.competitorDominanceRisk ? 'competitor-hit-metric' : ''}>競品：{Array.isArray(row.competitorsMentioned) && row.competitorsMentioned.length ? row.competitorsMentioned.join('、') : '無'}</span>
-              </div>
-
-              <div className="step5-detail-grid">
-                {row.competitorDominanceRisk && (
-                  <p className="competitor-hit-detail"><strong>競品壓過</strong>{row.competitorsMentioned.join('、')} 出現在同一個 {row.platform} 模擬回答中，但本品牌未被提及或引用，嚴重性已提高。</p>
-                )}
-                {row.simulatedAnswer && <p><strong>模擬回答摘要</strong>{row.simulatedAnswer}</p>}
-                <p><strong>品牌語境</strong>{row.brandContext}</p>
-                <p><strong>初步判斷</strong>{row.initialJudgement}</p>
-                <p className={status.className === 'critical' ? 'critical-text' : ''}><strong>對應缺口</strong>{row.gap}</p>
-                <p><strong>下一步優化</strong>{row.nextOptimization}</p>
-                <p><strong>摘要</strong>{row.summary}</p>
-              </div>
+              <ActionSummary row={row} />
+              <DetailToggle expanded={expanded} onClick={() => toggleDetails(rowKey)} />
+              {expanded && <JudgementDetails row={row} />}
             </div>
           );
         })}

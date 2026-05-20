@@ -1,12 +1,17 @@
 export const normalizeUrl = (value) => {
   if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/^<|>$/g, '');
   if (!trimmed) return '';
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
   try {
     const parsed = new URL(withProtocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return trimmed;
     parsed.hash = '';
+    parsed.pathname = parsed.pathname
+      .replace(/\/(?:index|default)\.(?:html?|php|asp|aspx)$/i, '/')
+      .replace(/\/+$/g, '/');
+    if (parsed.pathname !== '/') parsed.pathname = parsed.pathname.replace(/\/+$/g, '');
     return parsed.toString().replace(/\/$/, '');
   } catch (error) {
     console.error('Invalid URL:', error);

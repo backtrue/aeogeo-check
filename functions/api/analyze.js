@@ -18,16 +18,64 @@ const JSON_HEADERS = {
 };
 
 const STEP4_SCENARIOS = [
-  '完全沒引用網站內容',
-  '引用內容但沒標明來源',
-  '回答沒有提到品牌',
-  '品牌描述籠統',
-  '品牌描述錯誤',
-  '只提競品不提本品牌',
-  '品牌被放在錯誤語境',
-  '回答缺少商業決策資訊',
-  '回答有提到品牌但缺少下一步行動理由'
+  'AI 完全沒有引用品牌或內容',
+  'AI 使用了觀點，但沒有標示來源',
+  'AI 引用了內容，但沒有提到品牌',
+  'AI 提到品牌，但描述很籠統',
+  'AI 提到品牌，但描述錯誤',
+  'AI 提到競品，但沒有提到本品牌',
+  'AI 把品牌跟錯誤競品放在一起',
+  'AI 只在品牌名問題中出現',
+  'AI 只在低意圖問題中出現'
 ];
+
+const SEO106_RULE_FALLBACKS = STEP4_SCENARIOS.map((scenario) => ({
+  scenario,
+  surface: {
+    'AI 完全沒有引用品牌或內容': 'AI 回答沒有引用品牌、網站、內容或來源。',
+    'AI 使用了觀點，但沒有標示來源': 'AI 回答接近品牌觀點或框架，但沒有可確認來源。',
+    'AI 引用了內容，但沒有提到品牌': '內容進入答案，但品牌沒有被連結起來。',
+    'AI 提到品牌，但描述很籠統': '品牌有出現，但缺少差異、定位或具體服務描述。',
+    'AI 提到品牌，但描述錯誤': '品牌被提及，但定位、服務、客群或能力被講錯。',
+    'AI 提到競品，但沒有提到本品牌': '同題答案出現其他品牌或工具，本品牌缺席。',
+    'AI 把品牌跟錯誤競品放在一起': '品牌被放進不符合定位的比較集合。',
+    'AI 只在品牌名問題中出現': 'AI 知道品牌存在，但沒有在無品牌需求題主動提及。',
+    'AI 只在低意圖問題中出現': '低意圖知識題可見，高意圖比較、推薦、決策題缺席。'
+  }[scenario],
+  rootCause: {
+    'AI 完全沒有引用品牌或內容': '內容還沒有進入答案候選，或內容不像可直接引用的答案。',
+    'AI 使用了觀點，但沒有標示來源': '內容有答案價值，但來源辨識、作者、品牌或框架命名不足。',
+    'AI 引用了內容，但沒有提到品牌': '內容與品牌 Entity 連結弱。',
+    'AI 提到品牌，但描述很籠統': '身份確認訊號弱，外部描述缺少脈絡。',
+    'AI 提到品牌，但描述錯誤': '公開網路上的品牌描述或外部證詞混亂。',
+    'AI 提到競品，但沒有提到本品牌': '品牌與該主題的答案世界關聯不足。',
+    'AI 把品牌跟錯誤競品放在一起': '市場定位訊號偏掉，鄰近品牌集合錯誤。',
+    'AI 只在品牌名問題中出現': '有品牌身份，但缺品類、情境與推薦語境關聯。',
+    'AI 只在低意圖問題中出現': '有知識內容，但缺少商業決策內容。'
+  }[scenario],
+  optimizationTarget: {
+    'AI 完全沒有引用品牌或內容': '104 內容',
+    'AI 使用了觀點，但沒有標示來源': '104 內容',
+    'AI 引用了內容，但沒有提到品牌': '105 品牌語境',
+    'AI 提到品牌，但描述很籠統': '105 品牌語境',
+    'AI 提到品牌，但描述錯誤': '105 品牌語境',
+    'AI 提到競品，但沒有提到本品牌': '105 品牌語境',
+    'AI 把品牌跟錯誤競品放在一起': '105 品牌語境',
+    'AI 只在品牌名問題中出現': '105 品牌語境',
+    'AI 只在低意圖問題中出現': '商業決策頁'
+  }[scenario],
+  nextAction: {
+    'AI 完全沒有引用品牌或內容': '回 104 檢查前段直接回答、H2 問題化、列表、表格、步驟、比較與可信來源。',
+    'AI 使用了觀點，但沒有標示來源': '替框架命名，補作者、品牌、網站主題與內部連結，讓來源可辨識。',
+    'AI 引用了內容，但沒有提到品牌': '補作者經驗、品牌案例、About、服務頁與文章內品牌連結。',
+    'AI 提到品牌，但描述很籠統': '回 105 修正 About、社群、商家資料、LinkedIn 與外部文章描述。',
+    'AI 提到品牌，但描述錯誤': '回 105 統一外部證詞與品牌描述，移除錯誤定位訊號。',
+    'AI 提到競品，但沒有提到本品牌': '補第三方提及、推薦清單、比較文、產業專題與問題整理頁的主題關聯。',
+    'AI 把品牌跟錯誤競品放在一起': '修定位訊號、比較頁、案例頁與外部描述，讓鄰近集合回到正確市場。',
+    'AI 只在品牌名問題中出現': '補品類關聯、情境關聯與推薦語境，讓無品牌需求題也能想到品牌。',
+    'AI 只在低意圖問題中出現': '補比較頁、案例頁、方案頁、服務頁、FAQ、成果證明與購買/預約/諮詢入口。'
+  }[scenario]
+}));
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
@@ -35,12 +83,17 @@ function jsonResponse(payload, status = 200) {
 
 function normalizeUrl(value) {
   if (typeof value !== 'string') throw new Error('url 必須是字串。');
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/^<|>$/g, '');
   if (!trimmed) throw new Error('url 不可為空。');
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   const parsed = new URL(withProtocol);
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('只支援 HTTP/HTTPS URL。');
+  if (!parsed.hostname || !parsed.hostname.includes('.')) throw new Error('請輸入有效網址，例如 example.com。');
   parsed.hash = '';
+  parsed.pathname = parsed.pathname
+    .replace(/\/(?:index|default)\.(?:html?|php|asp|aspx)$/i, '/')
+    .replace(/\/+$/g, '/');
+  if (parsed.pathname !== '/') parsed.pathname = parsed.pathname.replace(/\/+$/g, '');
   return parsed.toString().replace(/\/$/, '');
 }
 
@@ -315,7 +368,7 @@ function resolveProviderMode(env, requestKeys) {
 }
 
 async function scrapeUrl(url) {
-  const targets = [url, `https://r.jina.ai/http://${new URL(url).host}${new URL(url).pathname}`];
+  const targets = [url, `https://r.jina.ai/${url}`];
   let lastError = null;
 
   for (const target of targets) {
@@ -583,20 +636,136 @@ function filterNamesInText(names, text) {
     .filter((name) => String(text || '').includes(name));
 }
 
+function normalizeStatus(value, allowedValues, fallback) {
+  const text = String(value || '').trim();
+  return allowedValues.includes(text) ? text : fallback;
+}
+
+function normalizeQuestionType(value) {
+  const text = String(value || '').trim();
+  if (text.includes('決策')) return '決策';
+  if (text.includes('推薦')) return '推薦';
+  if (text.includes('比較')) return '比較';
+  if (text.includes('情境')) return '情境';
+  if (text.includes('方法')) return '方法';
+  if (text.includes('定義')) return '定義';
+  return text || '未分類';
+}
+
+function isCommercialIntentQuestion(question) {
+  const type = normalizeQuestionType(question?.type);
+  if (['比較', '情境', '推薦', '決策'].includes(type)) return true;
+  const text = String(question?.question || '');
+  return /推薦|比較|選|找誰|哪一|哪個|名單|課程|顧問|服務|價格|報名|預約|購買|諮詢|廠商|公司|品牌/.test(text);
+}
+
+function normalizeStep4Rules(step4) {
+  const rules = coerceArray(step4, 9);
+  return STEP4_SCENARIOS.map((scenario, index) => {
+    const generated = rules.find((rule) => String(rule?.scenario || '').includes(scenario.replace(/^AI /, '')))
+      || rules.find((rule) => String(rule?.scenario || '') === scenario)
+      || {};
+    const fallback = SEO106_RULE_FALLBACKS[index];
+    return {
+      scenario,
+      surface: typeof generated.surface === 'string' && generated.surface ? generated.surface : fallback.surface,
+      rootCause: typeof generated.rootCause === 'string' && generated.rootCause ? generated.rootCause : fallback.rootCause,
+      optimizationTarget: typeof generated.optimizationTarget === 'string' && generated.optimizationTarget ? generated.optimizationTarget : fallback.optimizationTarget,
+      nextAction: typeof generated.nextAction === 'string' && generated.nextAction ? generated.nextAction : fallback.nextAction
+    };
+  });
+}
+
+function getRuleByScenario(step4, scenario) {
+  return normalizeStep4Rules(step4).find((rule) => rule.scenario === scenario) || SEO106_RULE_FALLBACKS[0];
+}
+
+function inferSeo106Scenario({ citationStatus, mentionStatus, descriptionStatus, nearbyBrands, question, aiMentionsBrand }) {
+  const commercialIntent = isCommercialIntentQuestion(question);
+  if (descriptionStatus === '錯誤') return 'AI 提到品牌，但描述錯誤';
+  if (aiMentionsBrand && nearbyBrands.length && commercialIntent) return 'AI 把品牌跟錯誤競品放在一起';
+  if (nearbyBrands.length && !aiMentionsBrand) return 'AI 提到競品，但沒有提到本品牌';
+  if (aiMentionsBrand && descriptionStatus === '籠統') return 'AI 提到品牌，但描述很籠統';
+  if (citationStatus === '有' && mentionStatus === '沒有') return 'AI 引用了內容，但沒有提到品牌';
+  if (citationStatus === '不確定' && mentionStatus === '沒有') return 'AI 使用了觀點，但沒有標示來源';
+  if (!aiMentionsBrand && commercialIntent) return 'AI 只在低意圖問題中出現';
+  return 'AI 完全沒有引用品牌或內容';
+}
+
+function inferSeverity({ scenario, citationStatus, mentionStatus, descriptionStatus, nearbyBrands, question, errorMessage }) {
+  if (errorMessage) return 'critical';
+  if (
+    scenario === 'AI 提到品牌，但描述錯誤'
+    || scenario === 'AI 提到競品，但沒有提到本品牌'
+    || scenario === 'AI 把品牌跟錯誤競品放在一起'
+    || (scenario === 'AI 只在低意圖問題中出現' && normalizeQuestionType(question?.type) === '決策')
+  ) {
+    return 'critical';
+  }
+  if (citationStatus === '沒有' && mentionStatus === '沒有' && descriptionStatus === '未提及' && !nearbyBrands.length && !isCommercialIntentQuestion(question)) {
+    return 'observe';
+  }
+  if (
+    scenario === 'AI 引用了內容，但沒有提到品牌'
+    || scenario === 'AI 提到品牌，但描述很籠統'
+    || scenario === 'AI 使用了觀點，但沒有標示來源'
+    || scenario === 'AI 只在低意圖問題中出現'
+  ) {
+    return 'warning';
+  }
+  return 'observe';
+}
+
+function scoreForSeverity(severity, rawScore) {
+  const score = Number.isFinite(Number(rawScore)) ? Math.max(0, Math.min(100, Number(rawScore))) : null;
+  if (severity === 'critical') return Math.min(score ?? 45, 59);
+  if (severity === 'warning') return Math.max(60, Math.min(score ?? 72, 79));
+  return Math.max(80, score ?? 85);
+}
+
 function normalizeChecklistRow(row, question, index, provider, platform, errorMessage = '', options = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const simulatedAnswer = typeof row?.simulatedAnswer === 'string' ? row.simulatedAnswer : '';
-  const competitorsMentioned = filterNamesInText(row?.competitorsMentioned, simulatedAnswer);
-  const competitorHit = competitorsMentioned.length > 0;
+  const nearbyBrands = filterNamesInText(row?.nearbyBrands || row?.competitorsMentioned, simulatedAnswer);
   const brandCandidates = Array.isArray(options.brandCandidates) ? options.brandCandidates : [];
   const answerMentionsKnownBrand = brandCandidates.length ? textIncludesAny(simulatedAnswer, brandCandidates) : Boolean(row?.aiMentionsBrand);
-  const aiMentionsBrand = Boolean(row?.aiMentionsBrand) && answerMentionsKnownBrand;
+  const mentionStatus = answerMentionsKnownBrand
+    ? normalizeStatus(row?.mentionStatus, ['有', '沒有', '間接提到'], '有')
+    : '沒有';
+  const aiMentionsBrand = mentionStatus === '有' || mentionStatus === '間接提到';
   const aiCitesContent = options.hasCitationMetadata ? Boolean(row?.aiCitesContent) : false;
-  const competitorDominanceRisk = competitorHit && (!aiMentionsBrand || !aiCitesContent);
-  const rawScore = Number.isFinite(Number(row?.score)) ? Math.max(0, Math.min(100, Number(row.score))) : 0;
-  const adjustedScore = competitorDominanceRisk ? Math.min(rawScore, 59) : rawScore;
+  const citationStatus = aiCitesContent
+    ? '有'
+    : normalizeStatus(row?.citationStatus, ['有', '沒有', '不確定'], options.hasCitationMetadata ? '沒有' : '沒有');
+  const descriptionStatus = aiMentionsBrand
+    ? normalizeStatus(row?.descriptionStatus, ['正確', '籠統', '錯誤', '未提及'], row?.aiDescribesBrandCorrectly ? '正確' : '籠統')
+    : '未提及';
+  const aiDescribesBrandCorrectly = aiMentionsBrand && descriptionStatus === '正確' && Boolean(row?.aiDescribesBrandCorrectly);
+  const scenario = typeof row?.answerPhenomenon === 'string' && STEP4_SCENARIOS.includes(row.answerPhenomenon)
+    ? row.answerPhenomenon
+    : inferSeo106Scenario({ citationStatus, mentionStatus, descriptionStatus, nearbyBrands, question, aiMentionsBrand });
+  const matchedStep4Rule = getRuleByScenario(options.step4, scenario);
+  const severity = normalizeStatus(
+    row?.severity,
+    ['critical', 'warning', 'observe'],
+    inferSeverity({ scenario, citationStatus, mentionStatus, descriptionStatus, nearbyBrands, question, errorMessage })
+  );
+  const adjustedScore = scoreForSeverity(severity, row?.score);
+  const competitorHit = nearbyBrands.length > 0;
+  const competitorDominanceRisk = severity === 'critical' && nearbyBrands.length > 0 && !aiMentionsBrand;
   const evidenceSignals = Array.isArray(row?.evidenceSignals) ? row.evidenceSignals.filter(Boolean) : [];
   const failureReasons = Array.isArray(row?.failureReasons) ? row.failureReasons.filter(Boolean) : [];
+  const defaultGap = errorMessage || matchedStep4Rule.rootCause || '目前資料不足';
+  const defaultNextOptimization = errorMessage ? '重新執行此題檢核，確認模型 API 回應是否恢復。' : matchedStep4Rule.nextAction;
+  const userFacingProblem = typeof row?.userFacingProblem === 'string' && row.userFacingProblem.trim()
+    ? row.userFacingProblem.trim()
+    : (failureReasons[0] || matchedStep4Rule.surface || scenario);
+  const userFacingGap = typeof row?.userFacingGap === 'string' && row.userFacingGap.trim()
+    ? row.userFacingGap.trim()
+    : defaultGap;
+  const userFacingNextStep = typeof row?.userFacingNextStep === 'string' && row.userFacingNextStep.trim()
+    ? row.userFacingNextStep.trim()
+    : defaultNextOptimization;
   return {
     date: typeof row?.date === 'string' ? row.date : today,
     provider,
@@ -604,22 +773,32 @@ function normalizeChecklistRow(row, question, index, provider, platform, errorMe
     simulationMode: 'cold-start-v2',
     questionIndex: index + 1,
     question: typeof row?.question === 'string' ? row.question : question.question,
-    type: typeof row?.type === 'string' ? row.type : question.type,
+    type: normalizeQuestionType(typeof row?.type === 'string' ? row.type : question.type),
+    answerPhenomenon: scenario,
+    citationStatus,
+    mentionStatus,
+    descriptionStatus,
     aiCitesContent,
     aiMentionsBrand,
-    aiDescribesBrandCorrectly: aiMentionsBrand && Boolean(row?.aiDescribesBrandCorrectly),
+    aiDescribesBrandCorrectly,
     simulatedAnswer,
     competitorHit,
     competitorDominanceRisk,
-    competitorsMentioned,
+    competitorsMentioned: nearbyBrands,
+    nearbyBrands,
     brandContext: typeof row?.brandContext === 'string' ? row.brandContext : '目前資料不足',
-    initialJudgement: competitorDominanceRisk ? '嚴重缺口：競品出現但本品牌未被提及或引用' : (typeof row?.initialJudgement === 'string' ? row.initialJudgement : (errorMessage ? '檢核失敗' : '待人工複核')),
+    initialJudgement: typeof row?.initialJudgement === 'string'
+      ? row.initialJudgement
+      : (errorMessage ? '檢核失敗' : `${matchedStep4Rule.optimizationTarget}：${matchedStep4Rule.rootCause}`),
     evidenceSignals,
-    failureReasons: competitorDominanceRisk
-      ? [...failureReasons, '同一個回答中出現競品，但本品牌未被提及或未被引用']
-      : failureReasons,
-    gap: competitorDominanceRisk ? `同一個 ${platform} 回答出現其他品牌：${competitorsMentioned.join('、')}，但本品牌${!aiMentionsBrand ? '未被提及' : ''}${!aiMentionsBrand && !aiCitesContent ? '且' : ''}${!aiCitesContent ? '未被引用' : ''}。這代表品牌在該問題的 AI 語境中被競品壓過。` : (typeof row?.gap === 'string' ? row.gap : (errorMessage || '目前資料不足')),
-    nextOptimization: typeof row?.nextOptimization === 'string' ? row.nextOptimization : '重新執行此題檢核，或縮短前序輸入後再產生檢核表。',
+    failureReasons,
+    gap: typeof row?.gap === 'string' && row.gap ? row.gap : defaultGap,
+    nextOptimization: typeof row?.nextOptimization === 'string' && row.nextOptimization ? row.nextOptimization : defaultNextOptimization,
+    userFacingProblem,
+    userFacingGap,
+    userFacingNextStep,
+    matchedStep4Rule,
+    severity,
     score: adjustedScore,
     summary: typeof row?.summary === 'string' ? row.summary : (errorMessage || `第 ${index + 1} 題未取得完整 ${platform} 檢核結果。`)
   };
@@ -646,23 +825,25 @@ function getColdSimulationPrompt(question, platform) {
 
 function getChecklistJudgePrompt(step1, step4, question, platform, simulatedAnswer) {
   return `
-你是 AI 搜尋成效檢查員。請只根據下方「已固定的冷啟動回答」做事後判讀，輸出 12 欄成效檢查列。
+你是 SEO106 AI 搜尋成效檢查員。請只根據下方「已固定的冷啟動回答」做事後判讀，輸出 SEO106 檢查列。
 
 重要限制：
 1. 不得改寫、補寫、擴寫或重新產生冷啟動回答。
 2. simulatedAnswer 必須原文放入輸出。
-3. competitorsMentioned 只能來自 simulatedAnswer 內實際出現的其他品牌、公司、產品或服務名稱。
-4. 不得使用 Step 1 的 differentiation 或任何預設競品清單來填 competitorsMentioned。
-5. 本流程沒有官方搜尋 citation metadata，因此 aiCitesContent 必須填 false。
-6. 若 simulatedAnswer 未實際出現本品牌名稱、網域或明確品牌身份，aiMentionsBrand 必須填 false。
-7. 若只出現品類詞、通用名詞、地名或沒有品牌名稱，competitorsMentioned 必須為 []。
-8. 只有在「competitorsMentioned 非空，且本品牌未被提及或未被引用」時，才判為嚴重缺口，score 必須小於 60。
+3. nearbyBrands 只能來自 simulatedAnswer 內實際出現的其他品牌、公司、產品、網站、工具、專家或課程名稱。
+4. 不得使用 Step 1 的 differentiation 或任何預設競品清單來填 nearbyBrands。
+5. 本流程沒有官方搜尋 citation metadata，因此 aiCitesContent 必須填 false；citationStatus 只能填「沒有」或「不確定」，不得假裝有來源。
+6. 若 simulatedAnswer 未實際出現本品牌名稱、網域或明確品牌身份，mentionStatus 必須填「沒有」、aiMentionsBrand 必須填 false、descriptionStatus 必須填「未提及」。
+7. 若只出現品類詞、通用名詞、地名或沒有品牌名稱，nearbyBrands 必須為 []。
+8. SEO106 的判讀核心是「引用、提及、描述、鄰近」四個 Check；不要只用分數判斷。
+9. 四無且沒有鄰近品牌時，如果題目不是推薦、比較、情境、決策等商業意圖，不要判為嚴重缺口，severity 應填 observe。
+10. 只有競品出現但本品牌缺席、品牌描述錯誤、錯誤鄰近品牌集合、決策題缺席，才填 critical 且 score 小於 60。
 
 日期：${new Date().toISOString().slice(0, 10)}
 測試平台：${platform}
 Step 1：${JSON.stringify(step1)}
 本題：${JSON.stringify(question)}
-判讀規則：${JSON.stringify(step4)}
+SEO106 判讀規則：${JSON.stringify(normalizeStep4Rules(step4))}
 已固定的冷啟動回答：${simulatedAnswer}
 
 輸出 JSON object：
@@ -671,23 +852,129 @@ Step 1：${JSON.stringify(step1)}
     "date":"YYYY-MM-DD",
     "platform":"${platform}",
     "question":"測試問題",
-    "type":"問題類型",
+    "type":"定義|比較|方法|情境|推薦|決策",
     "simulatedAnswer":"必須與已固定的冷啟動回答完全相同",
+    "answerPhenomenon":"必須為 SEO106 九種情境之一",
+    "citationStatus":"有|沒有|不確定",
+    "mentionStatus":"有|沒有|間接提到",
+    "descriptionStatus":"正確|籠統|錯誤|未提及",
     "aiCitesContent":false,
     "aiMentionsBrand":false,
     "aiDescribesBrandCorrectly":false,
-    "competitorsMentioned":["只能填 simulatedAnswer 內實際出現的其他品牌名稱"],
+    "nearbyBrands":["只能填 simulatedAnswer 內實際出現的其他品牌、網站、工具、專家或課程名稱"],
     "brandContext":"AI 把品牌放在哪種語境；未提品牌時填未被提及",
     "initialJudgement":"初步判斷",
     "evidenceSignals":["從 simulatedAnswer 抽出的判斷線索，例如沒提品牌、只提品類、提到競品、缺少來源、描述錯誤"],
     "failureReasons":["為什麼這題被判定有問題，必須能讓使用者看懂判斷依據"],
     "gap":"對應缺口",
     "nextOptimization":"下一步優化方向",
+    "userFacingProblem":"給使用者看的具體問題診斷，不可只填 SEO106 情境名稱",
+    "userFacingGap":"給使用者看的具體缺口說明，不可只填抽象分類",
+    "userFacingNextStep":"給使用者看的具體下一步，不可只填通案建議",
+    "severity":"critical|warning|observe",
     "score":0,
     "summary":"診斷摘要"
   }
 }
-score 為 0 到 100；若 competitorsMentioned 非空且 aiMentionsBrand=false 或 aiCitesContent=false，score 必須小於 60。`;
+score 為 0 到 100；critical 必須小於 60，warning 為 60 到 79，observe 為 80 到 100。`;
+}
+
+function getUserFacingDiagnosisPrompt(step1, row) {
+  const publicPayload = {
+    brand: step1?.brand || step1?.brandName || step1?.siteName || step1?.url || '待檢查品牌',
+    url: step1?.url || step1?.sourceUrl || '',
+    question: row.question,
+    questionType: row.type,
+    platform: row.platform,
+    simulatedAnswer: row.simulatedAnswer,
+    answerPhenomenon: row.answerPhenomenon,
+    citationStatus: row.citationStatus,
+    mentionStatus: row.mentionStatus,
+    descriptionStatus: row.descriptionStatus,
+    nearbyBrands: row.nearbyBrands,
+    brandContext: row.brandContext,
+    initialJudgement: row.initialJudgement,
+    gap: row.gap,
+    nextOptimization: row.nextOptimization,
+    severity: row.severity,
+    score: row.score
+  };
+
+  return `
+你是 AEO/GEO 診斷報告編輯。請把下方已完成的 AI 搜尋檢查結果，改寫成網站使用者看得懂的三段診斷。
+
+你不是評分模型，不得重新判斷 severity、score 或 SEO106 情境。
+你的輸出會直接顯示在前台，所以不能使用內部規則名稱或抽象術語。
+
+寫作目標：
+- userFacingProblem：說清楚這一題在問什麼，以及 AI 回答裡具體缺了什麼。
+- userFacingGap：說清楚這代表品牌或內容少了哪一種可被 AI 辨識的訊號。
+- userFacingNextStep：說清楚下一步要補哪一種頁面、段落、案例、FAQ、比較內容或外部提及。
+
+限制：
+1. 必須根據 question 與 simulatedAnswer 寫，不得寫通案。
+2. 不得新增 simulatedAnswer 沒有出現的品牌、競品、來源、數字。
+3. 不得出現「SEO106」「低意圖」「高意圖」「Entity」「answerPhenomenon」。
+4. 如果 mentionStatus 是「沒有」，要讓使用者明白 AI 沒有把品牌放進答案。
+5. 如果 severity 是 observe，語氣要是觀察，不要誇大成嚴重缺口。
+6. 每個欄位 35 到 80 字，繁體中文，台灣用語。
+7. 只輸出 JSON。
+
+檢查資料：
+${JSON.stringify(publicPayload)}
+
+輸出 JSON：
+{
+  "userFacingProblem": "為什麼被判定有問題",
+  "userFacingGap": "對應缺口",
+  "userFacingNextStep": "下一步"
+}`;
+}
+
+function pickDiagnosisText(value, fallback) {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+async function writeUserFacingDiagnosis(env, requestKeys, step1, row) {
+  try {
+    const hasOpenAI = hasProviderKey(env, requestKeys, 'openai', 'OPENAI_API_KEY');
+    const hasGemini = hasProviderKey(env, requestKeys, 'gemini', 'GEMINI_API_KEY');
+    const prompt = getUserFacingDiagnosisPrompt(step1, row);
+
+    let result;
+    if (hasOpenAI) {
+      result = await callOpenAI(
+        env,
+        requestKeys,
+        env.OPENAI_BALANCED_MODEL || OPENAI_DEFAULTS.balanced,
+        prompt
+      );
+    } else if (hasGemini) {
+      result = await callGemini(
+        env,
+        requestKeys,
+        env.GEMINI_BALANCED_MODEL || GEMINI_DEFAULTS.balanced,
+        prompt
+      );
+    } else {
+      return row;
+    }
+
+    return {
+      ...row,
+      userFacingProblem: pickDiagnosisText(result.userFacingProblem, row.userFacingProblem),
+      userFacingGap: pickDiagnosisText(result.userFacingGap, row.userFacingGap),
+      userFacingNextStep: pickDiagnosisText(result.userFacingNextStep, row.userFacingNextStep)
+    };
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'user_facing_diagnosis_failed',
+      platform: row.platform,
+      questionIndex: row.questionIndex,
+      error: error?.message || String(error)
+    }));
+    return row;
+  }
 }
 
 async function buildColdSimulatedAnswer(env, requestKeys, question, provider, platform) {
@@ -708,10 +995,12 @@ async function judgeChecklistRow(env, requestKeys, step1, step4, question, index
     ? await callGemini(env, requestKeys, env.GEMINI_BALANCED_MODEL || GEMINI_DEFAULTS.balanced, prompt)
     : await callOpenAI(env, requestKeys, env.OPENAI_BALANCED_MODEL || OPENAI_DEFAULTS.balanced, prompt);
   const row = { ...(result.row || result), simulatedAnswer, aiCitesContent: false };
-  return normalizeChecklistRow(row, question, index, provider.replace('-only', ''), platform, '', {
+  const normalizedRow = normalizeChecklistRow(row, question, index, provider.replace('-only', ''), platform, '', {
     brandCandidates: extractBrandCandidates(step1),
-    hasCitationMetadata: false
+    hasCitationMetadata: false,
+    step4
   });
+  return writeUserFacingDiagnosis(env, requestKeys, step1, normalizedRow);
 }
 
 async function buildChecklistRow(env, requestKeys, step1, step4, question, index, provider) {
@@ -737,9 +1026,21 @@ async function runStep5(env, requestKeys, previousResults, providerMode) {
     ];
   });
 
-  const settled = await Promise.allSettled(
-    jobs.map((job) => buildChecklistRow(env, requestKeys, step1, step4, job.question, job.index, job.provider))
-  );
+  const batchSize = 3;
+  const settled = [];
+
+  for (let i = 0; i < jobs.length; i += batchSize) {
+    const batch = jobs.slice(i, i + batchSize);
+    const batchPromises = batch.map((job) =>
+      buildChecklistRow(env, requestKeys, step1, step4, job.question, job.index, job.provider)
+    );
+    const batchResults = await Promise.allSettled(batchPromises);
+    settled.push(...batchResults);
+
+    if (i + batchSize < jobs.length) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
 
   return settled.map((entry, jobIndex) => {
     const job = jobs[jobIndex];
@@ -747,7 +1048,11 @@ async function runStep5(env, requestKeys, previousResults, providerMode) {
     if (entry.status === 'fulfilled') return entry.value;
     const message = entry.reason?.message || '模型檢核失敗。';
     console.error(JSON.stringify({ event: 'step5_row_failed', index: job.index, provider: job.provider, error: message }));
-    return normalizeChecklistRow(null, job.question, job.index, job.provider.replace('-only', ''), platform, message);
+    return normalizeChecklistRow(null, job.question, job.index, job.provider.replace('-only', ''), platform, message, {
+      brandCandidates: extractBrandCandidates(step1),
+      hasCitationMetadata: false,
+      step4
+    });
   });
 }
 
@@ -755,7 +1060,10 @@ async function runStep6(env, requestKeys, previousResults, providerMode) {
   const { step1, step5 } = previousResults;
   if (!step1 || !step5) throw new Error('Step 6 需要 Step 1 與 Step 5 結果。');
   const prompt = `
-根據 Step 5 缺口整理 30 天優化清單。必須覆蓋 5 類：內容可引用性修正、品牌身份與 Entity 修正、外部語境與第三方證詞修正、商業決策頁修正、下一輪 AI 搜尋測試建議。
+根據 Step 5 的 SEO106 檢查列整理 30 天優化清單。必須讀取 severity、matchedStep4Rule.optimizationTarget、gap 與 nextOptimization，把任務分流到 104 內容、105 品牌語境、外部語境、商業決策頁與下一輪測試。
+critical 優先處理；warning 排第二；observe 只做趨勢觀察或低成本修正，不要把合理四無答案當成嚴重缺口。
+
+必須覆蓋 5 類：內容可引用性修正、品牌身份與 Entity 修正、外部語境與第三方證詞修正、商業決策頁修正、下一輪 AI 搜尋測試建議。
 
 Step 1：${JSON.stringify(step1)}
 Step 5：${JSON.stringify(step5)}
@@ -821,5 +1129,8 @@ export const __testables = {
   getChecklistJudgePrompt,
   getColdSimulationPrompt,
   getQuestionForColdSimulation,
+  getUserFacingDiagnosisPrompt,
+  normalizeUrl,
+  normalizeStep4Rules,
   normalizeChecklistRow
 };

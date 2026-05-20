@@ -188,7 +188,7 @@ export default function AeoDashboard() {
                 style={{ maxWidth: '720px', margin: '0 auto' }}
               >
                 <div className="home-url-form-row">
-                  <input type="url" value={url} onChange={(event) => setUrl(event.target.value)} className="glass-input" placeholder="https://your-brand.com" required />
+                  <input type="text" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} className="glass-input" placeholder="your-brand.com 或 https://your-brand.com" required />
                   <button type="submit" className="btn-primary" disabled={loading}>{loading ? '分析中...' : '開始檢查 AI 能見度'}</button>
                 </div>
                 <p className="home-flow-hint">會自動產生 30 題測試題、挑出最重要 10 題，並產出優先修正問題。</p>
